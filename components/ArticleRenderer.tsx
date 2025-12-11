@@ -46,9 +46,9 @@ const ParagraphBlock = ({ text }: { text: string }) => {
 
 const QuoteBlock = ({ text, author }: { text: string; author?: string }) => (
   <div className="relative mb-10 mt-8 group">
-    <div className="absolute -top-6 -left-4 text-8xl text-orange-200 font-serif opacity-40 select-none">“</div>
+    <div className="absolute -top-6 -left-4 text-8xl text-orange-200 font-serif opacity-40 select-none z-20">“</div>
     <div className="relative bg-gradient-to-br from-orange-50 to-white p-8 rounded-2xl border border-orange-100 shadow-sm hover:shadow-md transition-shadow">
-      <p className="text-xl md:text-2xl font-serif italic text-slate-800 mb-4 leading-relaxed relative z-10">
+      <p className="text-xl md:text-2xl font-normal text-slate-800 mb-4 leading-relaxed relative z-10">
         {text}
       </p>
       {author && (
@@ -60,7 +60,7 @@ const QuoteBlock = ({ text, author }: { text: string; author?: string }) => (
         </div>
       )}
     </div>
-    <div className="absolute -bottom-10 -right-4 text-8xl text-orange-200 font-serif opacity-40 rotate-180 select-none">“</div>
+    <div className="absolute -bottom-10 -right-4 text-8xl text-orange-200 font-serif opacity-40 rotate-180 select-none z-20">“</div>
   </div>
 );
 
@@ -79,11 +79,11 @@ const CalloutBlock = ({ text, title, variant = 'info' }: { text: string; title?:
   };
 
   return (
-    <div className={`flex gap-4 p-6 rounded-xl border ${styles[variant]} mb-8 shadow-sm backdrop-blur-sm`}>
-      <div className={`flex-shrink-0 mt-1 p-2 bg-white rounded-lg shadow-sm ${iconColors[variant]}`}>
+    <div className={`flex items-center gap-4 p-6 rounded-xl border ${styles[variant]} mb-8 shadow-sm backdrop-blur-sm`}>
+      <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center p-2 bg-white rounded-lg shadow-sm ${iconColors[variant]}`}>
         <Icon className="w-5 h-5" />
       </div>
-      <div>
+      <div className="flex-1">
         {title && <h4 className="font-bold mb-2 text-lg">{title}</h4>}
         <p className="opacity-90 leading-relaxed text-base">{text}</p>
       </div>
@@ -148,20 +148,54 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
   );
 };
 
-const ImageBlock = ({ src, alt, caption }: { src: string; alt: string; caption?: string }) => (
-  <figure className="mb-12 group">
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-lg relative">
-      <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors z-10 pointer-events-none" />
-      <img src={src} alt={alt} className="w-full object-contain max-h-[500px] mx-auto transition-transform duration-700 group-hover:scale-[1.02]" />
-    </div>
-    {caption && (
-      <figcaption className="mt-3 px-2 text-sm text-slate-500 flex items-center justify-center gap-2 font-medium">
-        <ImageIcon className="w-4 h-4 text-indigo-400" />
-        {caption}
-      </figcaption>
-    )}
-  </figure>
-);
+const ImageBlock = ({ src, alt, caption }: { src: string; alt: string; caption?: string }) => {
+  const [aspect, setAspect] = React.useState('16 / 9');
+
+  const ratioPresets = [
+    { label: '1 / 1', value: 1 },
+    { label: '4 / 3', value: 4 / 3 },
+    { label: '3 / 2', value: 3 / 2 },
+    { label: '16 / 9', value: 16 / 9 },
+    { label: '21 / 9', value: 21 / 9 },
+    { label: '3 / 4', value: 3 / 4 },
+    { label: '2 / 3', value: 2 / 3 },
+    { label: '9 / 16', value: 9 / 16 },
+  ];
+
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    const nearest = ratioPresets.reduce((best, preset) => {
+      const diff = Math.abs(preset.value - ratio);
+      return diff < best.diff ? { diff, label: preset.label } : best;
+    }, { diff: Number.MAX_VALUE, label: '16 / 9' });
+    setAspect(nearest.label);
+  };
+
+  return (
+    <figure className="mb-12 group">
+      <div
+        className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-lg relative"
+        style={{ aspectRatio: aspect }}
+      >
+        <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors z-10 pointer-events-none" />
+        <img
+          src={src}
+          alt={alt}
+          onLoad={handleLoad}
+          className="w-full h-full object-cover block transition-transform duration-700 group-hover:scale-[1.02]"
+        />
+      </div>
+      {caption && (
+        <figcaption className="mt-3 px-2 text-sm text-slate-500 flex items-center justify-center gap-2 font-medium">
+          <ImageIcon className="w-4 h-4 text-indigo-400" />
+          {caption}
+        </figcaption>
+      )}
+    </figure>
+  );
+};
 
 const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2 | 3 }) => {
   const gridCols = {

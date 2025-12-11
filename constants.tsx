@@ -10,7 +10,7 @@ export const SYSTEM_PROMPT = `你是一台“内容结构化转换引擎”。�
 {
   "title": "主标题",
   "subtitle": "副标题/摘要",
-  "meta": { "author": "作者", "date": "YYYY-MM-DD" },
+  "meta": { "author": "作者", "date": "YYYY-MM-DD", "readTime": "阅读时间" },
   "sections": [
     {
       "title": "分节标题（自动编号）",
