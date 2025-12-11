@@ -36,56 +36,61 @@ export default function App() {
   }, [jsonInput]);
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row h-screen overflow-hidden">
+    <div className="min-h-screen bg-stone-950 flex flex-col md:flex-row h-screen overflow-hidden font-sans">
       
-      {/* Editor Sidebar */}
+      {/* Editor Sidebar - Dark Mode */}
       <div 
         className={`${
-          isEditorOpen ? 'w-full md:w-1/3' : 'w-0'
-        } bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex flex-col relative z-20 shadow-2xl`}
+          isEditorOpen ? 'w-full md:w-1/3 border-r' : 'w-0 border-r-0'
+        } bg-[#1e1e1e] border-stone-800 transition-all duration-300 ease-in-out flex flex-col relative z-20 shadow-2xl overflow-hidden`}
       >
-        <div className="p-4 h-16 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600">
-              <Code2 className="w-4 h-4" />
+        {/* Inner Container with min-width to prevent content squashing during transition */}
+        <div className="w-full h-full flex flex-col min-w-[350px]">
+          <div className="p-4 h-16 border-b border-stone-800 flex items-center justify-between bg-[#1e1e1e]">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400">
+                <Code2 className="w-4 h-4" />
+              </div>
+              <h2 className="font-bold text-stone-300 text-sm tracking-wide">JSON Editor</h2>
             </div>
-            <h2 className="font-bold text-slate-800 text-sm tracking-wide">JSON Editor</h2>
+            <button 
+              onClick={() => setIsPromptModalOpen(true)}
+              className="text-xs bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-4 py-1.5 rounded-full font-bold transition-all shadow-lg hover:shadow-indigo-500/20 flex items-center gap-1.5 border border-white/5"
+            >
+              <Sparkles className="w-3 h-3" />
+              AI Prompt
+            </button>
           </div>
-          <button 
-            onClick={() => setIsPromptModalOpen(true)}
-            className="text-xs bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white px-4 py-1.5 rounded-full font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5"
-          >
-            <Sparkles className="w-3 h-3" />
-            AI Prompt
-          </button>
-        </div>
 
-        <div className="flex-1 relative bg-slate-50">
-          <textarea
-            className="w-full h-full p-6 font-mono text-xs leading-relaxed resize-none focus:outline-none bg-slate-50 text-slate-600 selection:bg-indigo-100"
-            value={jsonInput}
-            onChange={(e) => setJsonInput(e.target.value)}
-            spellCheck={false}
-          />
-          {error && (
-            <div className="absolute bottom-4 left-4 right-4 bg-red-50/90 backdrop-blur border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-bottom-2">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <p className="font-medium leading-relaxed">{error}</p>
-            </div>
-          )}
+          <div className="flex-1 relative bg-[#1e1e1e]">
+            <textarea
+              className="w-full h-full p-6 font-mono text-xs leading-relaxed resize-none focus:outline-none bg-[#1e1e1e] text-stone-400 selection:bg-indigo-500/30"
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              spellCheck={false}
+            />
+            {error && (
+              <div className="absolute bottom-4 left-4 right-4 bg-red-900/90 backdrop-blur border border-red-700 text-red-100 px-4 py-3 rounded-xl text-sm flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <p className="font-medium leading-relaxed">{error}</p>
+              </div>
+            )}
+          </div>
         </div>
-        
-        {/* Toggle Button (Mobile: hidden, Desktop: visible) */}
-        <button
-          onClick={() => setIsEditorOpen(!isEditorOpen)}
-          className="absolute top-1/2 -right-6 hidden md:flex w-6 h-12 bg-white border border-slate-200 rounded-full items-center justify-center text-slate-400 hover:text-indigo-600 hover:scale-110 transition-all shadow-lg z-10 cursor-pointer"
-        >
-          {isEditorOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </button>
       </div>
 
       {/* Main Preview Area */}
-      <div className="flex-1 h-full overflow-y-auto bg-slate-100/50 relative scroll-smooth">
+      <div className="flex-1 h-full overflow-y-auto bg-stone-950 relative scroll-smooth group/preview">
+        
+        {/* Desktop Toggle Button - Optimized positioning and shape */}
+        <button
+          onClick={() => setIsEditorOpen(!isEditorOpen)}
+          className="hidden md:flex absolute top-1/2 left-0 z-50 h-16 w-5 -translate-y-1/2 items-center justify-center rounded-r-xl border-y border-r border-stone-700 bg-stone-800/90 backdrop-blur-sm text-stone-400 shadow-lg transition-colors hover:bg-indigo-600 hover:border-indigo-500 hover:text-white cursor-pointer"
+          title={isEditorOpen ? "Close Sidebar" : "Open Sidebar"}
+        >
+          {isEditorOpen ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        </button>
+
         {/* Mobile Toggle for Editor */}
         <div className="md:hidden fixed bottom-6 right-6 z-50">
           <button
@@ -97,21 +102,11 @@ export default function App() {
         </div>
 
         {/* Content Wrapper */}
-        <div className="p-4 md:p-8 lg:p-12 min-h-full">
-          {!isEditorOpen && (
-            <button
-              onClick={() => setIsEditorOpen(true)}
-              className="fixed left-6 top-6 bg-white p-3 rounded-full shadow-lg border border-slate-100 hover:scale-110 transition-transform hidden md:block z-30"
-              title="Open Editor"
-            >
-              <Code2 className="w-5 h-5 text-slate-600" />
-            </button>
-          )}
-
+        <div className="p-4 md:p-8 lg:p-12 min-h-full flex flex-col items-center">
           {parsedData ? (
              <ArticleRenderer data={parsedData} />
           ) : (
-            <div className="flex items-center justify-center h-full text-slate-400">
+            <div className="flex items-center justify-center h-full text-stone-500">
               <p>Invalid JSON Data</p>
             </div>
           )}
