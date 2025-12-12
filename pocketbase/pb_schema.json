@@ -1,0 +1,53 @@
+[
+  {
+    "name": "tasks",
+    "type": "base",
+    "schema": [
+      {
+        "name": "url",
+        "type": "url",
+        "required": true,
+        "options": {
+          "exceptDomains": [],
+          "onlyDomains": []
+        }
+      },
+      {
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "options": {
+          "maxSelect": 1,
+          "values": ["pending", "processing", "completed", "failed"]
+        }
+      },
+      {
+        "name": "result",
+        "type": "json",
+        "required": false,
+        "options": {
+          "maxSize": 5242880
+        }
+      },
+      {
+        "name": "error",
+        "type": "text",
+        "required": false,
+        "options": {
+          "min": null,
+          "max": 10000,
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_tasks_url ON tasks (url)",
+      "CREATE INDEX idx_tasks_status ON tasks (status)"
+    ],
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": ""
+  }
+]

@@ -1,11 +1,12 @@
 version: '3.8'
 
 services:
-  infographic-article-renderer:
+  # Frontend service
+  frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
-    container_name: infographic-article-renderer
+    container_name: infographic-frontend
     ports:
       - "8080:80"
     restart: unless-stopped
@@ -13,6 +14,29 @@ services:
       - app-network
     environment:
       - NODE_ENV=production
+    depends_on:
+      - backend
+
+  # Backend API service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: infographic-backend
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-gpt-4o-mini}
+      - CRAWL4AI_URL=${CRAWL4AI_URL}
+      - POCKETBASE_URL=${POCKETBASE_URL}
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+      - DEBUG=false
 
 networks:
   app-network:

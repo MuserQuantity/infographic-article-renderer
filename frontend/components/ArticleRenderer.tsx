@@ -45,12 +45,20 @@ const ParagraphBlock = ({ text }: { text: string }) => {
   );
 };
 
-const QuoteBlock = ({ text, author }: { text: string; author?: string }) => (
-  <div className="relative mb-12 mt-10">
-    <div className="border-l-4 border-amber-500 pl-8 py-4 pr-2">
-      <p className="text-2xl font-serif text-stone-800 mb-6 leading-relaxed italic">
-        "{text}"
-      </p>
+const QuoteBlock = ({ text, author }: { text: string; author?: string }) => {
+  // 清理 markdown 引用语法 (> 开头的行)
+  const cleanText = text
+    .split('\n')
+    .map(line => line.replace(/^>\s*/, ''))
+    .join('\n')
+    .trim();
+
+  return (
+    <div className="relative mb-12 mt-10">
+      <div className="border-l-4 border-amber-500 pl-8 py-4 pr-2">
+        <p className="text-2xl font-serif text-stone-800 mb-6 leading-relaxed italic">
+          "{cleanText}"
+        </p>
       {author && (
         <div className="flex items-center justify-end gap-4">
           <div className="h-px w-12 bg-stone-300"></div>
@@ -61,7 +69,8 @@ const QuoteBlock = ({ text, author }: { text: string; author?: string }) => (
       )}
     </div>
   </div>
-);
+  );
+};
 
 const CalloutBlock = ({ text, title, variant = 'info' }: { text: string; title?: string; variant?: 'info' | 'warning' | 'success' }) => {
   const styles = {
