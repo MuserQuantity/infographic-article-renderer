@@ -39,7 +39,7 @@ const ParagraphBlock = ({ text }: { text: string }) => {
   };
 
   return (
-    <p className="text-stone-700 leading-8 mb-6 text-lg tracking-wide text-justify font-normal">
+    <p className="text-stone-700 leading-7 md:leading-8 mb-6 text-base md:text-lg tracking-wide text-justify font-normal">
       {parseBold(text)}
     </p>
   );
@@ -56,7 +56,7 @@ const QuoteBlock = ({ text, author }: { text: string; author?: string }) => {
   return (
     <div className="relative mb-12 mt-10">
       <div className="border-l-4 border-amber-500 pl-8 py-4 pr-2">
-        <p className="text-2xl font-serif text-stone-800 mb-6 leading-relaxed italic">
+        <p className="text-xl md:text-2xl font-serif text-stone-800 mb-6 leading-relaxed italic">
           "{cleanText}"
         </p>
       {author && (
@@ -90,8 +90,8 @@ const CalloutBlock = ({ text, title, variant = 'info' }: { text: string; title?:
     <div className={`flex items-start gap-4 p-6 rounded-xl border ${styles[variant]} mb-8`}>
       <Icon className={`w-6 h-6 flex-shrink-0 mt-0.5 ${iconColors[variant]}`} />
       <div className="flex-1">
-        {title && <h4 className="font-bold mb-1 text-lg">{title}</h4>}
-        <p className="opacity-90 leading-relaxed text-base">{text}</p>
+        {title && <h4 className="font-bold mb-1 text-base md:text-lg">{title}</h4>}
+        <p className="opacity-90 leading-relaxed text-sm md:text-base">{text}</p>
       </div>
     </div>
   );
@@ -99,7 +99,7 @@ const CalloutBlock = ({ text, title, variant = 'info' }: { text: string; title?:
 
 const ListBlock = ({ items, title, style = 'bullet' }: { items: string[]; title?: string; style?: 'bullet' | 'check' | 'number' }) => (
   <div className="mb-10 pl-2">
-    {title && <h4 className="font-bold text-stone-900 mb-6 text-lg flex items-center gap-2 border-b border-stone-100 pb-2">
+    {title && <h4 className="font-bold text-stone-900 mb-6 text-base md:text-lg flex items-center gap-2 border-b border-stone-100 pb-2">
       {title}
     </h4>}
     <ul className="space-y-4">
@@ -121,7 +121,7 @@ const ListBlock = ({ items, title, style = 'bullet' }: { items: string[]; title?
                 </span>
               )}
             </span>
-            <span className="text-stone-700 text-lg leading-relaxed border-b border-stone-100 pb-4 w-full group-last:border-0">{content}</span>
+            <span className="text-stone-700 text-base md:text-lg leading-relaxed border-b border-stone-100 pb-4 w-full group-last:border-0">{content}</span>
           </li>
         );
       })}
@@ -143,10 +143,10 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
           <div className="w-12 h-12 rounded-xl bg-white text-stone-800 flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
              <LayoutGrid className="w-6 h-6" />
           </div>
-          <h4 className="font-bold text-stone-800 mb-3 text-xl">
+          <h4 className="font-bold text-stone-800 mb-3 text-lg md:text-xl">
             {item.title}
           </h4>
-          <p className="text-stone-600 leading-relaxed">{item.description}</p>
+          <p className="text-stone-600 leading-relaxed text-sm md:text-base">{item.description}</p>
         </div>
       ))}
     </div>
@@ -230,7 +230,7 @@ const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2
           <div key={idx} className="p-6 bg-white rounded-xl border border-stone-200 hover:border-stone-300 transition-all hover:shadow-lg hover:-translate-y-1">
             <div className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-3">{item.label}</div>
             <div className="flex items-end gap-3 mb-4">
-              <span className="text-4xl font-serif font-bold text-stone-900 tracking-tight leading-none">{item.value}</span>
+              <span className="text-3xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight leading-none">{item.value}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
               <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold min-w-[60px] justify-center ${style.bg} ${style.color}`}>
@@ -275,8 +275,8 @@ const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?
                   {item.time}
                 </span>
               )}
-              <h4 className="font-bold text-stone-800 text-lg mb-2">{item.title}</h4>
-            {item.desc && <p className="text-stone-600 leading-relaxed text-sm max-w-xl">{item.desc}</p>}
+              <h4 className="font-bold text-stone-800 text-base md:text-lg mb-2">{item.title}</h4>
+            {item.desc && <p className="text-stone-600 leading-relaxed text-xs md:text-sm max-w-xl">{item.desc}</p>}
           </div>
         </div>
       ))}
@@ -377,12 +377,12 @@ const BlockRenderer: React.FC<{ block: ContentBlock }> = ({ block }) => {
 // --- Section Renderer ---
 
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number }> = ({ section, index }) => (
-  <div className="mb-20 last:mb-0 relative">
-    <div className="flex items-baseline gap-4 mb-10 border-b-2 border-black pb-4">
-      <div className="text-4xl font-serif font-black text-stone-200 opacity-50">
+  <div className="mb-16 md:mb-20 last:mb-0 relative">
+    <div className="flex items-baseline gap-3 md:gap-4 mb-8 md:mb-10 border-b-2 border-black pb-4">
+      <div className="text-3xl md:text-4xl font-serif font-black text-stone-200 opacity-50">
         {String(index + 1).padStart(2, '0')}
       </div>
-      <h2 className="text-3xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight flex-1">
+      <h2 className="text-2xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight flex-1">
         {section.title}
       </h2>
     </div>
@@ -404,7 +404,7 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data }) => {
   return (
     <div className="max-w-5xl mx-auto bg-white min-h-[1000px] shadow-2xl shadow-stone-900/10 overflow-hidden rounded-none md:rounded-2xl ring-1 ring-slate-900/5 transition-all">
       {/* Header */}
-      <header className="bg-stone-900 text-white p-12 md:p-24 relative overflow-hidden">
+      <header className="bg-stone-900 text-white p-8 md:p-24 relative overflow-hidden">
         {/* Subtle noise texture or pattern could go here */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
         
@@ -422,12 +422,12 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data }) => {
             )}
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-serif font-black mb-10 leading-tight text-stone-50">
+          <h1 className="text-4xl md:text-7xl font-serif font-black mb-8 md:mb-10 leading-tight text-stone-50">
             {data.title}
           </h1>
           
           {data.subtitle && (
-            <p className="text-xl md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-6 mx-auto md:mx-0 text-left">
+            <p className="text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-4 md:pl-6 mx-auto md:mx-0 text-left">
               {data.subtitle}
             </p>
           )}
@@ -447,7 +447,7 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data }) => {
       </header>
 
       {/* Content Body */}
-      <main className="p-8 md:p-20 bg-white">
+      <main className="p-6 md:p-20 bg-white">
         {data.sections.map((section, idx) => (
           <SectionRenderer key={idx} section={section} index={idx} />
         ))}
