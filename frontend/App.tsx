@@ -261,7 +261,7 @@ export default function App() {
   // 加载状态
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-950 flex items-center justify-center">
+      <div className="fixed inset-0 bg-stone-950 flex items-center justify-center z-50">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
           <p className="text-stone-400 text-lg mb-2">
