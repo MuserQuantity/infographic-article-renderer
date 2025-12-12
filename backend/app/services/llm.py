@@ -24,7 +24,9 @@ interface ArticleSection {
   content: ContentBlock[]; // 内容块数组
 }
 
-// ContentBlock 可以是以下类型之一：
+// 【重要】每个 ContentBlock 必须包含 "type" 字段！
+// 正确格式: { "type": "paragraph", "text": "内容" }
+// 错误格式: { "paragraph": "内容" }  ← 这是错误的！
 type ContentBlock =
   | { type: "paragraph"; text: string }  // 段落，支持 **粗体** 语法
   | { type: "quote"; text: string; author?: string }  // 引用
@@ -38,6 +40,11 @@ type ContentBlock =
   | { type: "comparison"; columns: string[]; rows: { label: string; values: string[] }[] }  // 对比表
   | { type: "table"; headers: string[]; rows: string[][] }  // 表格
 ```
+
+ContentBlock 示例：
+- 段落: {"type": "paragraph", "text": "这是一段文字"}
+- 列表: {"type": "list", "items": ["项目1", "项目2"], "style": "bullet"}
+- 标签: {"type": "tags", "items": ["标签1", "标签2"]}
 
 转换规则：
 1. 提取文章标题作为 title
