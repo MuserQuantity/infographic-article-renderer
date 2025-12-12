@@ -57,7 +57,7 @@ export default function App() {
             className="text-xs bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-4 py-1.5 rounded-full font-bold transition-all shadow-lg hover:shadow-indigo-500/20 flex items-center gap-1.5 border border-white/5"
           >
             <Sparkles className="w-3 h-3" />
-            AI Prompt
+            Prompt
           </button>
         </div>
 

@@ -393,7 +393,7 @@ interface ArticleRendererProps {
 
 export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data }) => {
   return (
-    <div className="max-w-4xl mx-auto bg-white min-h-[1000px] shadow-2xl shadow-stone-900/10 overflow-hidden rounded-none md:rounded-2xl ring-1 ring-slate-900/5 transition-all">
+    <div className="max-w-5xl mx-auto bg-white min-h-[1000px] shadow-2xl shadow-stone-900/10 overflow-hidden rounded-none md:rounded-2xl ring-1 ring-slate-900/5 transition-all">
       {/* Header */}
       <header className="bg-stone-900 text-white p-12 md:p-24 relative overflow-hidden">
         {/* Subtle noise texture or pattern could go here */}

@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  infographic-article-renderer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: infographic-article-renderer
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      - NODE_ENV=production
+
+networks:
+  app-network:
+    driver: bridge
