@@ -126,10 +126,17 @@ def fix_comparison_rows(data: dict) -> dict:
         if "content" not in section:
             continue
         for block_idx, block in enumerate(section["content"]):
-            if block.get("type") == "comparison" and "rows" in block:
+            block_type = block.get("type", "unknown")
+            has_rows = "rows" in block
+
+            logger.info(f"Checking section[{section_idx}].content[{block_idx}]: type={block_type}, has_rows={has_rows}")
+
+            # 处理所有带 rows 字段的 comparison 类型块
+            if block_type == "comparison" and has_rows and block["rows"]:
                 fixed_rows = []
                 rows_fixed_in_block = 0
-                for row in block["rows"]:
+                for row_idx, row in enumerate(block["rows"]):
+                    logger.info(f"  Row {row_idx}: type={type(row).__name__}, value={str(row)[:100]}")
                     # 如果 row 是列表而不是字典，需要转换
                     if isinstance(row, list) and len(row) >= 1:
                         # 第一个元素作为 label，其余作为 values
@@ -149,6 +156,34 @@ def fix_comparison_rows(data: dict) -> dict:
                 if rows_fixed_in_block > 0:
                     fixed_count += rows_fixed_in_block
                     logger.info(f"Fixed {rows_fixed_in_block} comparison rows in section[{section_idx}].content[{block_idx}]")
+
+            # 如果是 table 类型但 rows 里面是对象数组（LLM 搞混了），转换为 comparison
+            elif block_type == "table" and has_rows and block["rows"]:
+                first_row = block["rows"][0] if block["rows"] else None
+                # 检查是否是错误格式：rows 是列表的列表，第一个元素看起来像 label
+                if isinstance(first_row, list) and len(first_row) >= 2:
+                    # 如果有 headers，说明这确实是 table，rows 格式是对的（string[][]）
+                    if "headers" in block and block["headers"]:
+                        logger.debug(f"  Table block has headers, keeping as table")
+                    else:
+                        # 没有 headers，可能是 LLM 把 comparison 错误地标记为 table
+                        logger.info(f"  Converting table to comparison in section[{section_idx}].content[{block_idx}]")
+                        block["type"] = "comparison"
+                        # 使用第一行作为 columns
+                        if "columns" not in block or not block["columns"]:
+                            # 从第一个数据行推断列数
+                            num_cols = len(first_row) - 1  # 减去 label 列
+                            block["columns"] = [f"列{i+1}" for i in range(num_cols)]
+                        # 转换 rows
+                        fixed_rows = []
+                        for row in block["rows"]:
+                            if isinstance(row, list) and len(row) >= 1:
+                                fixed_rows.append({
+                                    "label": str(row[0]),
+                                    "values": [str(v) for v in row[1:]]
+                                })
+                                fixed_count += 1
+                        block["rows"] = fixed_rows
 
     if fixed_count > 0:
         logger.info(f"Total fixed comparison rows: {fixed_count}")

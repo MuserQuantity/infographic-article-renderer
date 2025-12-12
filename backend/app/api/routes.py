@@ -43,14 +43,22 @@ async def process_task(task_id: str, url: str, translate_to_chinese: bool = True
         logger.info(f"[Task {task_id}] Task completed successfully!")
 
     except Exception as e:
-        logger.error(f"[Task {task_id}] Task failed with error: {e}")
-        # Update task with error
-        await db_service.update_task_status(
-            task_id,
-            "failed",
-            error=str(e)
-        )
-        logger.info(f"[Task {task_id}] Task status updated to 'failed'")
+        error_msg = str(e)
+        # 截断过长的错误信息（PocketBase 可能有长度限制）
+        if len(error_msg) > 5000:
+            error_msg = error_msg[:5000] + "... (truncated)"
+        logger.error(f"[Task {task_id}] Task failed with error: {error_msg}")
+
+        # Update task with error - 用额外的 try-except 确保不会再次失败
+        try:
+            await db_service.update_task_status(
+                task_id,
+                "failed",
+                error=error_msg
+            )
+            logger.info(f"[Task {task_id}] Task status updated to 'failed'")
+        except Exception as update_error:
+            logger.error(f"[Task {task_id}] Failed to update task status: {update_error}")
 
 
 @router.post(
