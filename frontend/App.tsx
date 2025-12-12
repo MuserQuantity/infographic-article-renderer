@@ -329,13 +329,25 @@ export default function App() {
           新文章
         </button>
         {articleUrl && (
-          <button
-            onClick={handleRefresh}
-            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-2 rounded-xl shadow-lg transition-colors"
-            title="强制刷新"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
+          <>
+            <a
+              href={articleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
+              title="查看原文"
+            >
+              <ExternalLink className="w-4 h-4" />
+              原文
+            </a>
+            <button
+              onClick={handleRefresh}
+              className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-2 rounded-xl shadow-lg transition-colors"
+              title="强制刷新"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+          </>
         )}
       </div>
 
