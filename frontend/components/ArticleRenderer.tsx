@@ -7,12 +7,12 @@ import {
   StatItem,
   ComparisonRow
 } from '../types';
-import { 
-  Quote, 
-  Info, 
-  CheckCircle2, 
-  LayoutGrid, 
-  AlertTriangle, 
+import {
+  Quote,
+  Info,
+  CheckCircle2,
+  LayoutGrid,
+  AlertTriangle,
   List,
   Calendar,
   User,
@@ -22,7 +22,10 @@ import {
   Tag,
   Sparkles,
   Image as ImageIcon,
-  ArrowRight
+  ArrowRight,
+  Code,
+  Copy,
+  Check
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -343,6 +346,53 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
   </div>
 );
 
+const CodeBlock = ({ code, language, title }: { code: string; language?: string; title?: string }) => {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mb-10 rounded-xl overflow-hidden border border-stone-200 bg-stone-900 shadow-lg">
+      <div className="flex items-center justify-between px-4 py-3 bg-stone-800 border-b border-stone-700">
+        <div className="flex items-center gap-3">
+          <Code className="w-4 h-4 text-stone-400" />
+          {title && <span className="text-sm font-medium text-stone-300">{title}</span>}
+          {language && (
+            <span className="px-2 py-0.5 rounded text-xs font-mono bg-stone-700 text-stone-300">
+              {language}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium text-stone-400 hover:text-stone-200 hover:bg-stone-700 transition-colors"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-emerald-400">已复制</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5" />
+              <span>复制</span>
+            </>
+          )}
+        </button>
+      </div>
+      <div className="p-4 overflow-x-auto">
+        <pre className="text-sm font-mono text-stone-100 leading-relaxed whitespace-pre-wrap break-words">
+          <code>{code}</code>
+        </pre>
+      </div>
+    </div>
+  );
+};
+
 // --- Main Block Switcher ---
 
 const BlockRenderer: React.FC<{ block: ContentBlock }> = ({ block }) => {
@@ -369,6 +419,8 @@ const BlockRenderer: React.FC<{ block: ContentBlock }> = ({ block }) => {
       return <ComparisonBlock columns={block.columns} rows={block.rows} />;
     case 'table':
       return <TableBlock headers={block.headers} rows={block.rows} />;
+    case 'code':
+      return <CodeBlock code={block.code} language={block.language} title={block.title} />;
     default:
       return null;
   }

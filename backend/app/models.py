@@ -47,7 +47,7 @@ class ComparisonRow(BaseModel):
 class ContentBlock(BaseModel):
     type: Literal[
         "paragraph", "list", "quote", "callout", "grid",
-        "image", "stat", "tags", "timeline", "comparison", "table"
+        "image", "stat", "tags", "timeline", "comparison", "table", "code"
     ]
     # Common fields
     id: Optional[str] = None
@@ -70,6 +70,9 @@ class ContentBlock(BaseModel):
     rows: Optional[list[ComparisonRow]] = None
     # Table specific
     headers: Optional[list[str]] = None
+    # Code specific
+    code: Optional[str] = None
+    language: Optional[str] = None
 
 
 class ArticleSection(BaseModel):

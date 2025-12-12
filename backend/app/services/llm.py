@@ -37,8 +37,9 @@ type ContentBlock =
   | { type: "stat"; items: { label: string; value: string; trend?: "up" | "down" | "flat"; note?: string }[]; columns?: 1 | 2 | 3 }  // 统计数据
   | { type: "tags"; items: string[] }  // 标签
   | { type: "timeline"; items: { title: string; time?: string; desc?: string }[] }  // 时间线
-  | { type: "comparison"; columns: string[]; rows: { label: string; values: string[] }[] }  // 对比表
-  | { type: "table"; headers: string[]; rows: string[][] }  // 表格
+  | { type: "comparison"; columns: string[]; rows: { label: string; values: string[] }[] }  // 对比表（rows 必须是对象数组！）
+  | { type: "table"; headers: string[]; rows: string[][] }  // 表格（rows 是字符串数组的数组）
+  | { type: "code"; code: string; language?: string; title?: string }  // 代码块
 ```
 
 ContentBlock 示例：
@@ -53,6 +54,12 @@ ContentBlock 示例：
 - 时间线: {"type": "timeline", "items": [{"title": "事件1", "time": "2024-01", "desc": "描述1"}, {"title": "事件2", "time": "2024-06", "desc": "描述2"}]}
 - 对比表: {"type": "comparison", "columns": ["方案A", "方案B"], "rows": [{"label": "价格", "values": ["免费", "付费"]}, {"label": "功能", "values": ["基础", "完整"]}]}
 - 表格: {"type": "table", "headers": ["列1", "列2", "列3"], "rows": [["数据1", "数据2", "数据3"], ["数据4", "数据5", "数据6"]]}
+- 代码块: {"type": "code", "code": "console.log('Hello World');", "language": "javascript", "title": "示例代码"}
+
+【特别注意 comparison 和 table 的 rows 格式区别！】
+- comparison 的 rows 是对象数组: [{"label": "行名", "values": ["值1", "值2"]}]
+- table 的 rows 是纯字符串数组: [["值1", "值2"], ["值3", "值4"]]
+- 切勿混淆！comparison 需要每行有 label 和 values 两个字段
 
 转换规则：
 1. 提取文章标题作为 title
@@ -67,9 +74,10 @@ ContentBlock 示例：
    - 功能/特性介绍用 grid
    - 数据/统计用 stat
    - 事件/历程用 timeline
-   - 多方案对比用 comparison
-   - 结构化数据用 table
+   - 多方案对比用 comparison（注意 rows 必须是 {label, values} 对象数组）
+   - 结构化数据用 table（rows 是字符串数组的数组）
    - 关键词/分类用 tags
+   - 代码示例/代码片段用 code
 
 6. 确保输出是有效的 JSON，不要添加任何注释或额外文本
 7. 如果文章有图片链接，保留原始 URL 在 image 块中

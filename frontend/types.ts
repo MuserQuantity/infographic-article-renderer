@@ -1,15 +1,16 @@
-export type ArticleContentType = 
-  | 'paragraph' 
-  | 'list' 
-  | 'quote' 
-  | 'callout' 
-  | 'grid' 
+export type ArticleContentType =
+  | 'paragraph'
+  | 'list'
+  | 'quote'
+  | 'callout'
+  | 'grid'
   | 'image'
   | 'stat'
   | 'tags'
   | 'timeline'
   | 'comparison'
-  | 'table';
+  | 'table'
+  | 'code';
 
 export interface BaseContent {
   type: ArticleContentType;
@@ -106,18 +107,26 @@ export interface TableContent extends BaseContent {
   rows: string[][];
 }
 
-export type ContentBlock = 
-  | TextContent 
-  | ListContent 
-  | QuoteContent 
-  | CalloutContent 
-  | GridContent 
+export interface CodeContent extends BaseContent {
+  type: 'code';
+  code: string;
+  language?: string;
+  title?: string;
+}
+
+export type ContentBlock =
+  | TextContent
+  | ListContent
+  | QuoteContent
+  | CalloutContent
+  | GridContent
   | ImageContent
   | StatContent
   | TagsContent
   | TimelineContent
   | ComparisonContent
-  | TableContent;
+  | TableContent
+  | CodeContent;
 
 export interface ArticleSection {
   title: string;
