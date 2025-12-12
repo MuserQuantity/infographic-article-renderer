@@ -42,9 +42,17 @@ type ContentBlock =
 ```
 
 ContentBlock 示例：
-- 段落: {"type": "paragraph", "text": "这是一段文字"}
-- 列表: {"type": "list", "items": ["项目1", "项目2"], "style": "bullet"}
-- 标签: {"type": "tags", "items": ["标签1", "标签2"]}
+- 段落: {"type": "paragraph", "text": "这是一段文字，支持 **粗体** 语法"}
+- 引用: {"type": "quote", "text": "这是一段引用文字", "author": "作者名"}
+- 提示框: {"type": "callout", "text": "这是提示内容", "title": "提示标题", "variant": "info"}
+- 列表: {"type": "list", "items": ["项目1", "项目2", "项目3"], "title": "列表标题", "style": "bullet"}
+- 网格卡片: {"type": "grid", "items": [{"title": "卡片1", "description": "描述1"}, {"title": "卡片2", "description": "描述2"}], "columns": 2}
+- 图片: {"type": "image", "src": "https://example.com/image.jpg", "alt": "图片描述", "caption": "图片说明"}
+- 统计数据: {"type": "stat", "items": [{"label": "用户数", "value": "10万+", "trend": "up"}, {"label": "增长率", "value": "25%", "trend": "up"}], "columns": 2}
+- 标签: {"type": "tags", "items": ["标签1", "标签2", "标签3"]}
+- 时间线: {"type": "timeline", "items": [{"title": "事件1", "time": "2024-01", "desc": "描述1"}, {"title": "事件2", "time": "2024-06", "desc": "描述2"}]}
+- 对比表: {"type": "comparison", "columns": ["方案A", "方案B"], "rows": [{"label": "价格", "values": ["免费", "付费"]}, {"label": "功能", "values": ["基础", "完整"]}]}
+- 表格: {"type": "table", "headers": ["列1", "列2", "列3"], "rows": [["数据1", "数据2", "数据3"], ["数据4", "数据5", "数据6"]]}
 
 转换规则：
 1. 提取文章标题作为 title
