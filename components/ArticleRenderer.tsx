@@ -240,13 +240,14 @@ const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2
 };
 
 const TagsBlock = ({ items }: { items: string[] }) => (
-  <div className="flex flex-wrap gap-2 mb-12 pt-4 border-t border-stone-100">
+  <div className="flex flex-wrap gap-2.5 mb-12 pt-4 border-t border-stone-100">
     {items.map((tag, idx) => (
       <span
         key={idx}
-        className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-stone-100 text-stone-600 text-xs font-semibold hover:bg-stone-200 transition-colors cursor-default"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 text-xs font-medium hover:from-indigo-100 hover:to-purple-100 transition-all cursor-default border border-indigo-100/50"
       >
-        # {tag}
+        <Tag className="w-3 h-3" />
+        {tag}
       </span>
     ))}
   </div>
