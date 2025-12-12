@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.models import (
     CreateTaskRequest,
@@ -9,35 +10,47 @@ from app.services.database import db_service
 from app.services.crawler import crawler_service
 from app.services.llm import llm_service
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["tasks"])
 
 
 async def process_task(task_id: str, url: str, translate_to_chinese: bool = True):
     """Background task to crawl URL and convert to article JSON."""
+    logger.info(f"[Task {task_id}] Starting processing for URL: {url}")
     try:
         # Update status to processing
+        logger.info(f"[Task {task_id}] Updating status to 'processing'")
         await db_service.update_task_status(task_id, "processing")
 
         # Step 1: Crawl the URL
+        logger.info(f"[Task {task_id}] Step 1: Crawling URL...")
         markdown_content = await crawler_service.crawl_url(url)
+        logger.info(f"[Task {task_id}] Crawl completed, content length: {len(markdown_content)}")
 
         # Step 2: Convert to article JSON using LLM
+        logger.info(f"[Task {task_id}] Step 2: Converting to article JSON using LLM...")
         article_data = await llm_service.convert_to_article_json(markdown_content, translate_to_chinese)
+        logger.info(f"[Task {task_id}] LLM conversion completed successfully")
 
         # Step 3: Update task with result
+        logger.info(f"[Task {task_id}] Step 3: Updating task with result...")
         await db_service.update_task_status(
             task_id,
             "completed",
             result=article_data
         )
+        logger.info(f"[Task {task_id}] Task completed successfully!")
 
     except Exception as e:
+        logger.error(f"[Task {task_id}] Task failed with error: {e}")
         # Update task with error
         await db_service.update_task_status(
             task_id,
             "failed",
             error=str(e)
         )
+        logger.info(f"[Task {task_id}] Task status updated to 'failed'")
 
 
 @router.post(

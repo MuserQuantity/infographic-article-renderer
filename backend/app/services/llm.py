@@ -1,7 +1,10 @@
 import json
+import logging
 from openai import AsyncOpenAI
 from app.config import get_settings
 from app.models import ArticleData
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是一个专业的内容结构化助手。你的任务是将文章内容转换为结构化的 JSON 格式，用于信息图文章渲染器。
 
@@ -115,14 +118,17 @@ def fix_comparison_rows(data: dict) -> dict:
     但 comparison 需要 [{"label": "...", "values": [...]}] 格式。
     """
     if "sections" not in data:
+        logger.debug("No sections found in data, skipping fix_comparison_rows")
         return data
 
-    for section in data["sections"]:
+    fixed_count = 0
+    for section_idx, section in enumerate(data["sections"]):
         if "content" not in section:
             continue
-        for block in section["content"]:
+        for block_idx, block in enumerate(section["content"]):
             if block.get("type") == "comparison" and "rows" in block:
                 fixed_rows = []
+                rows_fixed_in_block = 0
                 for row in block["rows"]:
                     # 如果 row 是列表而不是字典，需要转换
                     if isinstance(row, list) and len(row) >= 1:
@@ -131,13 +137,23 @@ def fix_comparison_rows(data: dict) -> dict:
                             "label": str(row[0]),
                             "values": [str(v) for v in row[1:]]
                         })
+                        rows_fixed_in_block += 1
                     elif isinstance(row, dict):
                         # 已经是正确格式，保持不变
                         fixed_rows.append(row)
                     else:
                         # 其他情况，尝试转换为字符串
                         fixed_rows.append({"label": str(row), "values": []})
+                        rows_fixed_in_block += 1
                 block["rows"] = fixed_rows
+                if rows_fixed_in_block > 0:
+                    fixed_count += rows_fixed_in_block
+                    logger.info(f"Fixed {rows_fixed_in_block} comparison rows in section[{section_idx}].content[{block_idx}]")
+
+    if fixed_count > 0:
+        logger.info(f"Total fixed comparison rows: {fixed_count}")
+    else:
+        logger.debug("No comparison rows needed fixing")
 
     return data
 
@@ -153,10 +169,13 @@ class LLMService:
 
     async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
         """Convert markdown content to structured ArticleData JSON."""
+        logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={len(markdown_content)}")
+
         # 根据翻译选项添加相应指令
         language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
         system_prompt = SYSTEM_PROMPT + language_instruction
 
+        logger.debug(f"Calling LLM model: {self.model}")
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -169,16 +188,30 @@ class LLMService:
 
         content = response.choices[0].message.content
         if not content:
+            logger.error("LLM returned empty response")
             raise Exception("LLM returned empty response")
+
+        logger.info(f"LLM response received, length={len(content)}")
+        logger.debug(f"LLM raw response: {content[:500]}...")
 
         try:
             data = json.loads(content)
+            logger.info(f"JSON parsed successfully, sections count: {len(data.get('sections', []))}")
+
             # 修正 comparison rows 格式错误
+            logger.info("Running fix_comparison_rows...")
             data = fix_comparison_rows(data)
-            return ArticleData(**data)
+
+            logger.info("Validating with Pydantic ArticleData model...")
+            result = ArticleData(**data)
+            logger.info("Validation successful!")
+            return result
         except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error: {e}")
+            logger.error(f"Raw content causing error: {content[:1000]}")
             raise Exception(f"Failed to parse LLM response as JSON: {e}")
         except Exception as e:
+            logger.error(f"Validation error: {e}")
             raise Exception(f"Failed to validate article structure: {e}")
 
 
