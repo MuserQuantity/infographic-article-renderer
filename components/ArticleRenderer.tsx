@@ -223,8 +223,8 @@ const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2
             <div className="flex items-end gap-3 mb-4">
               <span className="text-4xl font-serif font-bold text-stone-900 tracking-tight leading-none">{item.value}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold ${style.bg} ${style.color}`}>
+            <div className="flex items-center justify-between gap-4">
+              <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold min-w-[60px] justify-center ${style.bg} ${style.color}`}>
                 {trendIcon(item.trend)}
                 {item.trend === 'up' && '增长'}
                 {item.trend === 'down' && '下降'}
