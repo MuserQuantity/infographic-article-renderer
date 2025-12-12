@@ -108,6 +108,40 @@ KEEP_ORIGINAL_INSTRUCTION = """
 【重要】请保持文章的原始语言，不要翻译任何内容。"""
 
 
+def fix_comparison_rows(data: dict) -> dict:
+    """
+    修正 LLM 输出中 comparison 类型的 rows 格式错误。
+    LLM 有时会把 rows 输出为 [["label", "val1", "val2"]] 格式（table 格式），
+    但 comparison 需要 [{"label": "...", "values": [...]}] 格式。
+    """
+    if "sections" not in data:
+        return data
+
+    for section in data["sections"]:
+        if "content" not in section:
+            continue
+        for block in section["content"]:
+            if block.get("type") == "comparison" and "rows" in block:
+                fixed_rows = []
+                for row in block["rows"]:
+                    # 如果 row 是列表而不是字典，需要转换
+                    if isinstance(row, list) and len(row) >= 1:
+                        # 第一个元素作为 label，其余作为 values
+                        fixed_rows.append({
+                            "label": str(row[0]),
+                            "values": [str(v) for v in row[1:]]
+                        })
+                    elif isinstance(row, dict):
+                        # 已经是正确格式，保持不变
+                        fixed_rows.append(row)
+                    else:
+                        # 其他情况，尝试转换为字符串
+                        fixed_rows.append({"label": str(row), "values": []})
+                block["rows"] = fixed_rows
+
+    return data
+
+
 class LLMService:
     def __init__(self):
         settings = get_settings()
@@ -139,6 +173,8 @@ class LLMService:
 
         try:
             data = json.loads(content)
+            # 修正 comparison rows 格式错误
+            data = fix_comparison_rows(data)
             return ArticleData(**data)
         except json.JSONDecodeError as e:
             raise Exception(f"Failed to parse LLM response as JSON: {e}")
