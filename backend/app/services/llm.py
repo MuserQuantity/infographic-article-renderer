@@ -6,101 +6,88 @@ from app.models import ArticleData
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """你是一个专业的内容结构化助手。你的任务是将文章内容转换为结构化的 JSON 格式，用于信息图文章渲染器。
+SYSTEM_PROMPT = """你是一个专业的内容结构化助手。你的任务是将文章内容转换为结构化的 JSON 格式。"""
+
+USER_PROMPT_TEMPLATE = """请将以下文章内容转换为结构化 JSON 格式，用于信息图文章渲染器。
 
 输出格式必须严格遵循以下 TypeScript 类型定义：
 
 ```typescript
-interface ArticleData {
+interface ArticleData {{
   title: string;           // 文章标题
   subtitle?: string;       // 副标题（可选）
-  meta?: {
+  meta?: {{
     author?: string;       // 作者
     date?: string;         // 日期
     readTime?: string;     // 阅读时间，如 "5 分钟"
-  };
+  }};
   sections: ArticleSection[];  // 文章章节
-}
+}}
 
-interface ArticleSection {
+interface ArticleSection {{
   title: string;           // 章节标题
   content: ContentBlock[]; // 内容块数组
-}
+}}
 
 // 【重要】每个 ContentBlock 必须包含 "type" 字段！
-// 正确格式: { "type": "paragraph", "text": "内容" }
-// 错误格式: { "paragraph": "内容" }  ← 这是错误的！
 type ContentBlock =
-  | { type: "paragraph"; text: string }  // 段落，支持 **粗体** 语法
-  | { type: "quote"; text: string; author?: string }  // 引用
-  | { type: "callout"; text: string; title?: string; variant?: "info" | "warning" | "success" }  // 提示框
-  | { type: "list"; items: string[]; title?: string; style?: "bullet" | "check" | "number" }  // 列表
-  | { type: "grid"; items: { title: string; description: string }[]; columns: 1 | 2 | 3 }  // 网格卡片
-  | { type: "image"; src: string; alt: string; caption?: string }  // 图片
-  | { type: "stat"; items: { label: string; value: string; trend?: "up" | "down" | "flat"; note?: string }[]; columns?: 1 | 2 | 3 }  // 统计数据
-  | { type: "tags"; items: string[] }  // 标签
-  | { type: "timeline"; items: { title: string; time?: string; desc?: string }[] }  // 时间线
-  | { type: "comparison"; columns: string[]; rows: { label: string; values: string[] }[] }  // 对比表（rows 必须是对象数组！）
-  | { type: "table"; headers: string[]; rows: string[][] }  // 表格（rows 是字符串数组的数组）
-  | { type: "code"; code: string; language?: string; title?: string }  // 代码块
+  | {{ type: "paragraph"; text: string }}  // 段落，支持 **粗体** 语法
+  | {{ type: "quote"; text: string; author?: string }}  // 引用
+  | {{ type: "callout"; text: string; title?: string; variant?: "info" | "warning" | "success" }}  // 提示框
+  | {{ type: "list"; items: string[]; title?: string; style?: "bullet" | "check" | "number" }}  // 列表
+  | {{ type: "grid"; items: {{ title: string; description: string }}[]; columns: 1 | 2 | 3 }}  // 网格卡片
+  | {{ type: "image"; src: string; alt: string; caption?: string }}  // 图片
+  | {{ type: "stat"; items: {{ label: string; value: string; trend?: "up" | "down" | "flat"; note?: string }}[]; columns?: 1 | 2 | 3 }}  // 统计数据
+  | {{ type: "tags"; items: string[] }}  // 标签
+  | {{ type: "timeline"; items: {{ title: string; time?: string; desc?: string }}[] }}  // 时间线
+  | {{ type: "comparison"; columns: string[]; rows: ComparisonRow[] }}  // 对比表
+  | {{ type: "table"; headers: string[]; rows: string[][] }}  // 表格
+  | {{ type: "code"; code: string; language?: string; title?: string }}  // 代码块
+
+// ⚠️ 【极其重要】ComparisonRow 必须是对象，不是数组！
+interface ComparisonRow {{
+  label: string;      // 行标签
+  values: string[];   // 对应每列的值
+}}
 ```
 
-ContentBlock 示例：
-- 段落: {"type": "paragraph", "text": "这是一段文字，支持 **粗体** 语法"}
-- 引用: {"type": "quote", "text": "这是一段引用文字", "author": "作者名"}
-- 提示框: {"type": "callout", "text": "这是提示内容", "title": "提示标题", "variant": "info"}
-- 列表: {"type": "list", "items": ["项目1", "项目2", "项目3"], "title": "列表标题", "style": "bullet"}
-- 网格卡片: {"type": "grid", "items": [{"title": "卡片1", "description": "描述1"}, {"title": "卡片2", "description": "描述2"}], "columns": 2}
-- 图片: {"type": "image", "src": "https://example.com/image.jpg", "alt": "图片描述", "caption": "图片说明"}
-- 统计数据: {"type": "stat", "items": [{"label": "用户数", "value": "10万+", "trend": "up"}, {"label": "增长率", "value": "25%", "trend": "up"}], "columns": 2}
-- 标签: {"type": "tags", "items": ["标签1", "标签2", "标签3"]}
-- 时间线: {"type": "timeline", "items": [{"title": "事件1", "time": "2024-01", "desc": "描述1"}, {"title": "事件2", "time": "2024-06", "desc": "描述2"}]}
-- 对比表: {"type": "comparison", "columns": ["方案A", "方案B"], "rows": [{"label": "价格", "values": ["免费", "付费"]}, {"label": "功能", "values": ["基础", "完整"]}]}
-- 表格: {"type": "table", "headers": ["列1", "列2", "列3"], "rows": [["数据1", "数据2", "数据3"], ["数据4", "数据5", "数据6"]]}
-- 代码块: {"type": "code", "code": "console.log('Hello World');", "language": "javascript", "title": "示例代码"}
+⚠️⚠️⚠️ 【最重要的格式要求 - comparison 类型】⚠️⚠️⚠️
+comparison 的 rows 必须是对象数组，每个对象包含 label 和 values 字段！
 
-【特别注意 comparison 和 table 的 rows 格式区别！】
-- comparison 的 rows 是对象数组: [{"label": "行名", "values": ["值1", "值2"]}]
-- table 的 rows 是纯字符串数组: [["值1", "值2"], ["值3", "值4"]]
-- 切勿混淆！comparison 需要每行有 label 和 values 两个字段
+✅ 正确格式：
+{{"type": "comparison", "columns": ["GPT-5", "GPT-4"], "rows": [
+  {{"label": "准确率", "values": ["95%", "90%"]}},
+  {{"label": "速度", "values": ["快", "中"]}}
+]}}
+
+❌ 错误格式（不要这样写！）：
+{{"type": "comparison", "columns": ["GPT-5", "GPT-4"], "rows": [
+  ["准确率", "95%", "90%"],
+  ["速度", "快", "中"]
+]}}
+
+ContentBlock 示例：
+- 段落: {{"type": "paragraph", "text": "这是一段文字"}}
+- 列表: {{"type": "list", "items": ["项目1", "项目2"], "style": "bullet"}}
+- 对比表: {{"type": "comparison", "columns": ["方案A", "方案B"], "rows": [{{"label": "价格", "values": ["免费", "付费"]}}]}}
+- 表格: {{"type": "table", "headers": ["列1", "列2"], "rows": [["数据1", "数据2"]]}}
 
 转换规则：
-1. 提取文章标题作为 title
-2. 如果有副标题或摘要，作为 subtitle
-3. 尽量提取作者、日期信息到 meta
-4. 根据内容逻辑划分为多个 sections，每个 section 有明确的主题
-5. 根据内容特点选择合适的 ContentBlock 类型：
-   - 普通文本用 paragraph
-   - 重要引用用 quote
-   - 提示/警告/建议用 callout
-   - 列举项目用 list
-   - 功能/特性介绍用 grid
-   - 数据/统计用 stat
-   - 事件/历程用 timeline
-   - 多方案对比用 comparison（注意 rows 必须是 {label, values} 对象数组）
-   - 结构化数据用 table（rows 是字符串数组的数组）
-   - 关键词/分类用 tags
-   - 代码示例/代码片段用 code
+1. 提取文章标题作为 title，副标题作为 subtitle
+2. 尽量提取作者、日期信息到 meta
+3. 根据内容逻辑划分为多个 sections
+4. 根据内容特点选择合适的 ContentBlock 类型
+5. 【重要】JSON 文本不要包含 markdown 语法（">"、"-"、"#" 等）
+6. 过滤掉广告、订阅提示、社交媒体引导等非正文内容
 
-6. 确保输出是有效的 JSON，不要添加任何注释或额外文本
-7. 如果文章有图片链接，保留原始 URL 在 image 块中
-8. 【重要】JSON 中的文本内容不要包含 markdown 语法标记：
-   - quote 类型的 text 不要包含 ">" 符号
-   - list 类型的 items 不要包含 "-" 或 "*" 符号
-   - 不要包含 "#" 标题标记
-   - 只保留纯文本内容（**粗体** 语法除外，这个保留）
-9. 【重要】过滤掉以下非正文内容，不要包含在输出中：
-   - 广告和推广内容
-   - 订阅邮件列表、Newsletter 的提示
-   - 社交媒体关注引导（如 "Follow us on Twitter"）
-   - 网站导航链接
-   - 版权声明和免责声明
-   - "相关文章"、"推荐阅读" 等推荐区块
-   - 评论区内容
-   - 作者简介/关于作者区块
-   - 捐赠/赞助提示
+{language_instruction}
 
-请直接输出 JSON，不要包含 markdown 代码块标记。"""
+请直接输出 JSON，不要包含 markdown 代码块标记。
+
+---
+文章内容：
+
+{content}"""
 
 TRANSLATE_INSTRUCTION = """
 
@@ -208,14 +195,19 @@ class LLMService:
 
         # 根据翻译选项添加相应指令
         language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
-        system_prompt = SYSTEM_PROMPT + language_instruction
+
+        # 构建 user prompt，把所有指令放在 user message 中
+        user_prompt = USER_PROMPT_TEMPLATE.format(
+            language_instruction=language_instruction,
+            content=markdown_content
+        )
 
         logger.debug(f"Calling LLM model: {self.model}")
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"请将以下文章内容转换为结构化JSON格式：\n\n{markdown_content}"}
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
             ],
             temperature=0.3,
             response_format={"type": "json_object"}
