@@ -109,7 +109,7 @@ export default function App() {
 
   // 轮询任务状态
   const pollTaskStatus = async (taskId: string) => {
-    const maxAttempts = 60; // 最多轮询 60 次
+    const maxAttempts = 150; // 最多轮询 150 次（5 分钟）
     const pollInterval = 2000; // 每 2 秒轮询一次
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
