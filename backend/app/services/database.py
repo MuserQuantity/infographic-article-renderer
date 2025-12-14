@@ -71,8 +71,8 @@ class PocketBaseService:
                 timeout=30.0
             )
 
-            # If token expired, refresh and retry
-            if response.status_code == 401:
+            # If token expired or forbidden, refresh and retry
+            if response.status_code in (401, 403):
                 self._token = None
                 headers = await self._get_headers()
                 response = await client.request(
