@@ -49,6 +49,11 @@ import {
 
 const ParagraphBlock = ({ text }: { text: string }) => {
   const parseMarkdown = (str: string): React.ReactNode[] => {
+    // 确保 str 是字符串
+    if (typeof str !== 'string') {
+      return [String(str ?? '')];
+    }
+
     // 匹配粗体 **text** 和链接 [text](url)
     const combinedRegex = /(\*\*.*?\*\*|\[([^\]]+)\]\(([^)]+)\))/g;
     const result: React.ReactNode[] = [];
@@ -105,7 +110,8 @@ const ParagraphBlock = ({ text }: { text: string }) => {
 
 const QuoteBlock = ({ text, author }: { text: string; author?: string }) => {
   // 清理 markdown 引用语法 (> 开头的行)
-  const cleanText = text
+  const safeText = typeof text === 'string' ? text : String(text ?? '');
+  const cleanText = safeText
     .split('\n')
     .map(line => line.replace(/^>\s*/, ''))
     .join('\n')
@@ -162,9 +168,10 @@ const ListBlock = ({ items, title, style = 'bullet' }: { items: string[]; title?
     </h4>}
     <ul className="space-y-4">
       {items.map((item, idx) => {
-        const content = item.split(/(\*\*.*?\*\*)/g).map((part, i) => 
-          part.startsWith('**') && part.endsWith('**') 
-            ? <span key={i} className="font-bold text-stone-900">{part.slice(2, -2)}</span> 
+        const safeItem = typeof item === 'string' ? item : String(item ?? '');
+        const content = safeItem.split(/(\*\*.*?\*\*)/g).map((part, i) =>
+          part.startsWith('**') && part.endsWith('**')
+            ? <span key={i} className="font-bold text-stone-900">{part.slice(2, -2)}</span>
             : part
         );
 
