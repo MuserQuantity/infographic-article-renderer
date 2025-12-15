@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime
 from app.config import get_settings
 from app.models import Task, ArticleData, TaskStatus
+from app.services.llm import fix_comparison_rows
 
 
 class PocketBaseService:
@@ -88,11 +89,17 @@ class PocketBaseService:
 
     def _parse_task(self, record: dict) -> Task:
         """Parse PocketBase record to Task model."""
+        result_data = None
+        if record.get("result"):
+            # 修正数据库中可能存在的旧格式 comparison rows
+            fixed_result = fix_comparison_rows(record["result"])
+            result_data = ArticleData(**fixed_result)
+
         return Task(
             id=record.get("id"),
             url=record.get("url", ""),
             status=record.get("status", "pending"),
-            result=ArticleData(**record["result"]) if record.get("result") else None,
+            result=result_data,
             error=record.get("error"),
             created_at=datetime.fromisoformat(record["created"].replace("Z", "+00:00")) if record.get("created") else None,
             updated_at=datetime.fromisoformat(record["updated"].replace("Z", "+00:00")) if record.get("updated") else None,
