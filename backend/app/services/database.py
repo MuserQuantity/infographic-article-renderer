@@ -48,7 +48,7 @@ def fix_comparison_rows_in_result(data: dict) -> dict:
 class PocketBaseService:
     """PocketBase database service for task management."""
 
-    COLLECTION = "tasks"
+    COLLECTION = "infographic_tasks"
 
     def __init__(self):
         settings = get_settings()
