@@ -305,43 +305,45 @@ const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?
 );
 
 const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: ComparisonRow[] }) => (
-  <div className="mb-14 overflow-hidden rounded-xl border border-stone-200 bg-white">
-    <div className="grid" style={{ gridTemplateColumns: `180px repeat(${columns.length}, minmax(0, 1fr))` }}>
-      <div className="bg-stone-50 px-6 py-4 text-xs font-bold uppercase text-stone-400 flex items-center">
-        对比项
-      </div>
-      {columns.map((col, idx) => (
-        <div key={idx} className={`bg-stone-50 px-6 py-4 text-sm font-bold text-stone-800 border-l border-stone-200 text-center ${idx === 0 ? 'bg-stone-100/50' : ''}`}>
-          {col}
+  <div className="mb-14 rounded-xl border border-stone-200 bg-white">
+    <div className="overflow-x-auto">
+      <div className="grid" style={{ gridTemplateColumns: `150px repeat(${columns.length}, minmax(120px, 1fr))`, minWidth: Math.max((columns.length + 1) * 130, 400) }}>
+        <div className="bg-stone-50 px-6 py-4 text-xs font-bold uppercase text-stone-400 flex items-center whitespace-nowrap">
+          对比项
         </div>
-      ))}
-      {rows.map((row, idx) => (
-        <React.Fragment key={idx}>
-          <div className="px-6 py-4 text-sm font-bold text-stone-700 border-t border-stone-100 bg-white">
-            {row.label}
+        {columns.map((col, idx) => (
+          <div key={idx} className={`bg-stone-50 px-6 py-4 text-sm font-bold text-stone-800 border-l border-stone-200 text-center ${idx === 0 ? 'bg-stone-100/50' : ''}`}>
+            {col}
           </div>
-          {row.values.map((val, vIdx) => (
-            <div
-              key={vIdx}
-              className={`px-6 py-4 text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
-            >
-              {val}
+        ))}
+        {rows.map((row, idx) => (
+          <React.Fragment key={idx}>
+            <div className="px-6 py-4 text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-nowrap">
+              {row.label}
             </div>
-          ))}
-        </React.Fragment>
-      ))}
+            {row.values.map((val, vIdx) => (
+              <div
+                key={vIdx}
+                className={`px-6 py-4 text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
+              >
+                {val}
+              </div>
+            ))}
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   </div>
 );
 
 const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) => (
-  <div className="mb-14 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+  <div className="mb-14 rounded-xl border border-stone-200 bg-white shadow-sm">
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-stone-200">
+      <table className="w-full divide-y divide-stone-200" style={{ minWidth: Math.max(headers.length * 150, 500) }}>
         <thead>
           <tr className="bg-stone-50">
             {headers.map((h, idx) => (
-              <th key={idx} className="px-6 py-4 text-left text-xs font-bold text-stone-500 uppercase tracking-wider first:pl-8">
+              <th key={idx} className="px-6 py-4 text-left text-xs font-bold text-stone-500 uppercase tracking-wider first:pl-8 whitespace-nowrap min-w-[120px]">
                 {h}
               </th>
             ))}
@@ -351,7 +353,7 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
           {rows.map((row, idx) => (
             <tr key={idx} className="bg-white hover:bg-stone-50/50 transition-colors">
               {row.map((cell, cIdx) => (
-                <td key={cIdx} className="px-6 py-4 text-sm text-stone-700 leading-relaxed first:pl-8 first:font-medium">
+                <td key={cIdx} className="px-6 py-4 text-sm text-stone-700 leading-relaxed first:pl-8 first:font-medium min-w-[120px]">
                   {cell}
                 </td>
               ))}
