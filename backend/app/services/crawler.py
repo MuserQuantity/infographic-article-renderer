@@ -18,6 +18,9 @@ class CrawlerService:
                     "crawler_config": {
                         "type": "CrawlerRunConfig",
                         "params": {
+                            "css_selector": "article, main, .post, .content, .entry-content, [role='main']",
+                            "wait_until": "networkidle",
+                            "delay_before_return_html": 0.5,
                             "scraping_strategy": {
                                 "type": "LXMLWebScrapingStrategy",
                                 "params": {}
