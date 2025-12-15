@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 from typing import Optional, Literal, Any, Union
 from datetime import datetime
 
@@ -73,6 +73,34 @@ class ContentBlock(BaseModel):
     # Code specific
     code: Optional[str] = None
     language: Optional[str] = None
+
+    @field_validator("rows", mode="before")
+    @classmethod
+    def convert_list_rows_to_comparison_rows(cls, v):
+        """
+        自动将列表格式的 rows 转换为 ComparisonRow 格式。
+        ['label', 'val1', 'val2'] -> {'label': 'label', 'values': ['val1', 'val2']}
+        """
+        if v is None:
+            return v
+        if not isinstance(v, list):
+            return v
+
+        converted = []
+        for row in v:
+            if isinstance(row, list) and len(row) >= 1:
+                # 列表格式，转换为 ComparisonRow 格式
+                converted.append({
+                    "label": str(row[0]),
+                    "values": [str(val) for val in row[1:]]
+                })
+            elif isinstance(row, dict):
+                # 已经是正确格式
+                converted.append(row)
+            else:
+                # 其他情况，尝试转换
+                converted.append({"label": str(row), "values": []})
+        return converted
 
 
 class ArticleSection(BaseModel):

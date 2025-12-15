@@ -3,7 +3,46 @@ from typing import Optional
 from datetime import datetime
 from app.config import get_settings
 from app.models import Task, ArticleData, TaskStatus
-from app.services.llm import fix_comparison_rows
+
+
+def fix_comparison_rows_in_result(data: dict) -> dict:
+    """
+    修正数据库中存储的旧格式 comparison rows。
+    将列表格式 ['label', 'val1', 'val2'] 转换为对象格式 {'label': 'label', 'values': ['val1', 'val2']}
+    只对 comparison 类型的 block 进行修复，table 类型的 rows 保持 string[][] 格式。
+    """
+    if not data or "sections" not in data:
+        return data
+
+    for section in data.get("sections", []):
+        for block in section.get("content", []):
+            block_type = block.get("type", "")
+            # 只对 comparison 类型的 block 进行修复
+            if block_type == "comparison" and "rows" in block and block["rows"]:
+                fixed_rows = []
+                needs_fix = False
+                for row in block["rows"]:
+                    if isinstance(row, list):
+                        # 列表格式，需要转换
+                        needs_fix = True
+                        if len(row) >= 1:
+                            fixed_rows.append({
+                                "label": str(row[0]),
+                                "values": [str(v) for v in row[1:]]
+                            })
+                        else:
+                            fixed_rows.append({"label": "", "values": []})
+                    elif isinstance(row, dict):
+                        # 已经是正确的对象格式
+                        fixed_rows.append(row)
+                    else:
+                        needs_fix = True
+                        fixed_rows.append({"label": str(row), "values": []})
+
+                if needs_fix:
+                    block["rows"] = fixed_rows
+
+    return data
 
 
 class PocketBaseService:
@@ -92,7 +131,7 @@ class PocketBaseService:
         result_data = None
         if record.get("result"):
             # 修正数据库中可能存在的旧格式 comparison rows
-            fixed_result = fix_comparison_rows(record["result"])
+            fixed_result = fix_comparison_rows_in_result(record["result"])
             result_data = ArticleData(**fixed_result)
 
         return Task(
