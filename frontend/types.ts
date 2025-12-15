@@ -10,7 +10,17 @@ export type ArticleContentType =
   | 'timeline'
   | 'comparison'
   | 'table'
-  | 'code';
+  | 'code'
+  | 'accordion'
+  | 'steps'
+  | 'progress'
+  | 'highlight'
+  | 'definition'
+  | 'proscons'
+  | 'video'
+  | 'divider'
+  | 'linkcard'
+  | 'rating';
 
 export interface BaseContent {
   type: ArticleContentType;
@@ -114,6 +124,94 @@ export interface CodeContent extends BaseContent {
   title?: string;
 }
 
+// New content types
+
+export interface AccordionItem {
+  question: string;
+  answer: string;
+}
+
+export interface AccordionContent extends BaseContent {
+  type: 'accordion';
+  items: AccordionItem[];
+}
+
+export interface StepItem {
+  step: number;
+  title: string;
+  description: string;
+}
+
+export interface StepsContent extends BaseContent {
+  type: 'steps';
+  items: StepItem[];
+}
+
+export interface ProgressItem {
+  label: string;
+  value: number;
+  max?: number;
+}
+
+export interface ProgressContent extends BaseContent {
+  type: 'progress';
+  items: ProgressItem[];
+}
+
+export interface HighlightContent extends BaseContent {
+  type: 'highlight';
+  text: string;
+  color?: 'yellow' | 'blue' | 'green' | 'pink';
+}
+
+export interface DefinitionItem {
+  term: string;
+  definition: string;
+}
+
+export interface DefinitionContent extends BaseContent {
+  type: 'definition';
+  items: DefinitionItem[];
+}
+
+export interface ProsConsContent extends BaseContent {
+  type: 'proscons';
+  pros: string[];
+  cons: string[];
+}
+
+export interface VideoContent extends BaseContent {
+  type: 'video';
+  src: string;
+  platform?: 'youtube' | 'bilibili' | 'custom';
+  title?: string;
+}
+
+export interface DividerContent extends BaseContent {
+  type: 'divider';
+  dividerStyle?: 'simple' | 'decorated' | 'text';
+  text?: string;
+}
+
+export interface LinkCardContent extends BaseContent {
+  type: 'linkcard';
+  url: string;
+  title: string;
+  description?: string;
+  image?: string;
+}
+
+export interface RatingItem {
+  label: string;
+  score: number;
+  maxScore?: number;
+}
+
+export interface RatingContent extends BaseContent {
+  type: 'rating';
+  items: RatingItem[];
+}
+
 export type ContentBlock =
   | TextContent
   | ListContent
@@ -126,7 +224,17 @@ export type ContentBlock =
   | TimelineContent
   | ComparisonContent
   | TableContent
-  | CodeContent;
+  | CodeContent
+  | AccordionContent
+  | StepsContent
+  | ProgressContent
+  | HighlightContent
+  | DefinitionContent
+  | ProsConsContent
+  | VideoContent
+  | DividerContent
+  | LinkCardContent
+  | RatingContent;
 
 export interface ArticleSection {
   title: string;

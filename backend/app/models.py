@@ -44,10 +44,40 @@ class ComparisonRow(BaseModel):
     values: list[str]
 
 
+class AccordionItem(BaseModel):
+    question: str
+    answer: str
+
+
+class StepItem(BaseModel):
+    step: int
+    title: str
+    description: str
+
+
+class ProgressItem(BaseModel):
+    label: str
+    value: int
+    max: Optional[int] = 100
+
+
+class DefinitionItem(BaseModel):
+    term: str
+    definition: str
+
+
+class RatingItem(BaseModel):
+    label: str
+    score: float
+    maxScore: Optional[float] = 5
+
+
 class ContentBlock(BaseModel):
     type: Literal[
         "paragraph", "list", "quote", "callout", "grid",
-        "image", "stat", "tags", "timeline", "comparison", "table", "code"
+        "image", "stat", "tags", "timeline", "comparison", "table", "code",
+        "accordion", "steps", "progress", "highlight", "definition",
+        "proscons", "video", "divider", "linkcard", "rating"
     ]
     # Common fields
     id: Optional[str] = None
@@ -73,6 +103,24 @@ class ContentBlock(BaseModel):
     # Code specific
     code: Optional[str] = None
     language: Optional[str] = None
+    # Accordion specific (items reused as list[AccordionItem])
+    # Steps specific (items reused as list[StepItem])
+    # Progress specific (items reused as list[ProgressItem])
+    # Highlight specific
+    color: Optional[Literal["yellow", "blue", "green", "pink"]] = None
+    # Definition specific (items reused as list[DefinitionItem])
+    # ProsСons specific
+    pros: Optional[list[str]] = None
+    cons: Optional[list[str]] = None
+    # Video specific
+    platform: Optional[Literal["youtube", "bilibili", "custom"]] = None
+    # Divider specific
+    dividerStyle: Optional[Literal["simple", "decorated", "text"]] = None
+    # LinkCard specific
+    url: Optional[str] = None
+    description: Optional[str] = None
+    image: Optional[str] = None
+    # Rating specific (items reused as list[RatingItem])
 
     @model_validator(mode="before")
     @classmethod

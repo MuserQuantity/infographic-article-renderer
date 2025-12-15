@@ -1,11 +1,16 @@
 import React from 'react';
-import { 
-  ArticleData, 
-  ContentBlock, 
-  ArticleSection, 
+import {
+  ArticleData,
+  ContentBlock,
+  ArticleSection,
   GridItem,
   StatItem,
-  ComparisonRow
+  ComparisonRow,
+  AccordionItem,
+  StepItem,
+  ProgressItem,
+  DefinitionItem,
+  RatingItem
 } from '../types';
 import {
   Quote,
@@ -25,7 +30,19 @@ import {
   ArrowRight,
   Code,
   Copy,
-  Check
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CircleDot,
+  Highlighter,
+  BookOpen,
+  ThumbsUp,
+  ThumbsDown,
+  Play,
+  Minus,
+  ExternalLink,
+  Star,
+  StarHalf
 } from 'lucide-react';
 
 // --- Sub-Components ---
@@ -393,6 +410,278 @@ const CodeBlock = ({ code, language, title }: { code: string; language?: string;
   );
 };
 
+// --- New Block Components ---
+
+const AccordionBlock = ({ items }: { items: AccordionItem[] }) => {
+  const [openIndex, setOpenIndex] = React.useState<number | null>(0);
+
+  return (
+    <div className="mb-12 space-y-3">
+      {items.map((item, idx) => (
+        <div key={idx} className="border border-stone-200 rounded-xl overflow-hidden bg-white">
+          <button
+            onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+            className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-stone-50 transition-colors"
+          >
+            <span className="font-bold text-stone-800 text-base md:text-lg pr-4">{item.question}</span>
+            {openIndex === idx ? (
+              <ChevronUp className="w-5 h-5 text-stone-400 flex-shrink-0" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-stone-400 flex-shrink-0" />
+            )}
+          </button>
+          {openIndex === idx && (
+            <div className="px-6 pb-5 pt-1 border-t border-stone-100">
+              <p className="text-stone-600 leading-relaxed text-sm md:text-base">{item.answer}</p>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const StepsBlock = ({ items }: { items: StepItem[] }) => (
+  <div className="mb-12 space-y-6">
+    {items.map((item, idx) => (
+      <div key={idx} className="flex gap-5 group">
+        <div className="flex flex-col items-center">
+          <div className="w-10 h-10 rounded-full bg-stone-900 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 group-hover:bg-amber-500 transition-colors">
+            {item.step}
+          </div>
+          {idx < items.length - 1 && (
+            <div className="w-0.5 flex-1 bg-stone-200 mt-3 group-hover:bg-amber-200 transition-colors" />
+          )}
+        </div>
+        <div className="pb-8 flex-1">
+          <h4 className="font-bold text-stone-800 text-base md:text-lg mb-2">{item.title}</h4>
+          <p className="text-stone-600 leading-relaxed text-sm md:text-base">{item.description}</p>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const ProgressBlock = ({ items }: { items: ProgressItem[] }) => (
+  <div className="mb-12 space-y-5">
+    {items.map((item, idx) => {
+      const max = item.max || 100;
+      const percentage = Math.min((item.value / max) * 100, 100);
+      return (
+        <div key={idx} className="bg-white p-5 rounded-xl border border-stone-200">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-bold text-stone-700 text-sm md:text-base">{item.label}</span>
+            <span className="text-sm font-mono font-bold text-stone-500">{item.value}/{max}</span>
+          </div>
+          <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
+
+const HighlightBlock = ({ text, color = 'yellow' }: { text: string; color?: 'yellow' | 'blue' | 'green' | 'pink' }) => {
+  const colorStyles = {
+    yellow: 'bg-amber-50 border-amber-200 text-amber-900',
+    blue: 'bg-sky-50 border-sky-200 text-sky-900',
+    green: 'bg-emerald-50 border-emerald-200 text-emerald-900',
+    pink: 'bg-pink-50 border-pink-200 text-pink-900',
+  };
+
+  const iconColors = {
+    yellow: 'text-amber-500',
+    blue: 'text-sky-500',
+    green: 'text-emerald-500',
+    pink: 'text-pink-500',
+  };
+
+  return (
+    <div className={`mb-10 px-6 py-5 rounded-xl border-2 border-dashed ${colorStyles[color]} flex items-start gap-4`}>
+      <Highlighter className={`w-5 h-5 flex-shrink-0 mt-0.5 ${iconColors[color]}`} />
+      <p className="text-base md:text-lg font-medium leading-relaxed">{text}</p>
+    </div>
+  );
+};
+
+const DefinitionBlock = ({ items }: { items: DefinitionItem[] }) => (
+  <div className="mb-12 space-y-4">
+    {items.map((item, idx) => (
+      <div key={idx} className="bg-stone-50 rounded-xl p-6 border-l-4 border-stone-400">
+        <div className="flex items-center gap-2 mb-2">
+          <BookOpen className="w-4 h-4 text-stone-500" />
+          <dt className="font-bold text-stone-900 text-base md:text-lg">{item.term}</dt>
+        </div>
+        <dd className="text-stone-600 leading-relaxed text-sm md:text-base pl-6">{item.definition}</dd>
+      </div>
+    ))}
+  </div>
+);
+
+const ProsConsBlock = ({ pros, cons }: { pros: string[]; cons: string[] }) => (
+  <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">
+      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-200">
+        <ThumbsUp className="w-5 h-5 text-emerald-600" />
+        <h4 className="font-bold text-emerald-800 text-base md:text-lg">优点</h4>
+      </div>
+      <ul className="space-y-3">
+        {pros.map((item, idx) => (
+          <li key={idx} className="flex items-start gap-3">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-1 flex-shrink-0" />
+            <span className="text-emerald-800 text-sm md:text-base leading-relaxed">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+    <div className="bg-rose-50 rounded-xl p-6 border border-rose-100">
+      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-rose-200">
+        <ThumbsDown className="w-5 h-5 text-rose-600" />
+        <h4 className="font-bold text-rose-800 text-base md:text-lg">缺点</h4>
+      </div>
+      <ul className="space-y-3">
+        {cons.map((item, idx) => (
+          <li key={idx} className="flex items-start gap-3">
+            <Minus className="w-4 h-4 text-rose-500 mt-1 flex-shrink-0" />
+            <span className="text-rose-800 text-sm md:text-base leading-relaxed">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+);
+
+const VideoBlock = ({ src, platform = 'custom', title }: { src: string; platform?: 'youtube' | 'bilibili' | 'custom'; title?: string }) => {
+  const getEmbedUrl = () => {
+    if (platform === 'youtube') {
+      const videoId = src.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)?.[1] || src;
+      return `https://www.youtube.com/embed/${videoId}`;
+    }
+    if (platform === 'bilibili') {
+      const bvId = src.match(/BV[\w]+/)?.[0] || src;
+      return `https://player.bilibili.com/player.html?bvid=${bvId}&high_quality=1`;
+    }
+    return src;
+  };
+
+  return (
+    <div className="mb-12">
+      {title && (
+        <div className="flex items-center gap-2 mb-4">
+          <Play className="w-5 h-5 text-stone-500" />
+          <h4 className="font-bold text-stone-800 text-base md:text-lg">{title}</h4>
+        </div>
+      )}
+      <div className="relative aspect-video rounded-xl overflow-hidden bg-stone-900 shadow-lg">
+        <iframe
+          src={getEmbedUrl()}
+          className="absolute inset-0 w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    </div>
+  );
+};
+
+const DividerBlock = ({ dividerStyle = 'simple', text }: { dividerStyle?: 'simple' | 'decorated' | 'text'; text?: string }) => {
+  if (dividerStyle === 'text' && text) {
+    return (
+      <div className="my-12 flex items-center gap-4">
+        <div className="flex-1 h-px bg-stone-200" />
+        <span className="text-sm font-medium text-stone-400 uppercase tracking-widest">{text}</span>
+        <div className="flex-1 h-px bg-stone-200" />
+      </div>
+    );
+  }
+
+  if (dividerStyle === 'decorated') {
+    return (
+      <div className="my-12 flex items-center justify-center gap-3">
+        <div className="w-16 h-px bg-stone-300" />
+        <div className="w-2 h-2 rounded-full bg-amber-400" />
+        <div className="w-2 h-2 rounded-full bg-stone-400" />
+        <div className="w-2 h-2 rounded-full bg-amber-400" />
+        <div className="w-16 h-px bg-stone-300" />
+      </div>
+    );
+  }
+
+  return <hr className="my-12 border-t border-stone-200" />;
+};
+
+const LinkCardBlock = ({ url, title, description, image }: { url: string; title: string; description?: string; image?: string }) => (
+  <a
+    href={url}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="mb-10 block group"
+  >
+    <div className="flex flex-col md:flex-row gap-4 p-5 rounded-xl border border-stone-200 bg-white hover:border-stone-300 hover:shadow-lg transition-all">
+      {image && (
+        <div className="w-full md:w-48 h-32 rounded-lg overflow-hidden bg-stone-100 flex-shrink-0">
+          <img src={image} alt={title} className="w-full h-full object-cover" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <h4 className="font-bold text-stone-800 text-base md:text-lg group-hover:text-amber-600 transition-colors truncate">
+            {title}
+          </h4>
+          <ExternalLink className="w-4 h-4 text-stone-400 flex-shrink-0 mt-1" />
+        </div>
+        {description && (
+          <p className="text-stone-600 text-sm mt-2 line-clamp-2 leading-relaxed">{description}</p>
+        )}
+        <p className="text-stone-400 text-xs mt-3 truncate">{url}</p>
+      </div>
+    </div>
+  </a>
+);
+
+const RatingBlock = ({ items }: { items: RatingItem[] }) => {
+  const renderStars = (score: number, maxScore: number = 5) => {
+    const stars = [];
+    const fullStars = Math.floor(score);
+    const hasHalfStar = score % 1 >= 0.5;
+    const emptyStars = Math.floor(maxScore) - fullStars - (hasHalfStar ? 1 : 0);
+
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(<Star key={`full-${i}`} className="w-5 h-5 text-amber-400 fill-amber-400" />);
+    }
+    if (hasHalfStar) {
+      stars.push(<StarHalf key="half" className="w-5 h-5 text-amber-400 fill-amber-400" />);
+    }
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(<Star key={`empty-${i}`} className="w-5 h-5 text-stone-200" />);
+    }
+    return stars;
+  };
+
+  return (
+    <div className="mb-12 space-y-4">
+      {items.map((item, idx) => {
+        const maxScore = item.maxScore || 5;
+        return (
+          <div key={idx} className="flex items-center justify-between p-5 bg-white rounded-xl border border-stone-200 hover:border-stone-300 transition-all">
+            <span className="font-bold text-stone-700 text-sm md:text-base">{item.label}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-0.5">{renderStars(item.score, maxScore)}</div>
+              <span className="text-sm font-mono font-bold text-stone-500 min-w-[50px] text-right">
+                {item.score}/{maxScore}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // --- Main Block Switcher ---
 
 const BlockRenderer: React.FC<{ block: ContentBlock }> = ({ block }) => {
@@ -421,6 +710,26 @@ const BlockRenderer: React.FC<{ block: ContentBlock }> = ({ block }) => {
       return <TableBlock headers={block.headers} rows={block.rows} />;
     case 'code':
       return <CodeBlock code={block.code} language={block.language} title={block.title} />;
+    case 'accordion':
+      return <AccordionBlock items={block.items} />;
+    case 'steps':
+      return <StepsBlock items={block.items} />;
+    case 'progress':
+      return <ProgressBlock items={block.items} />;
+    case 'highlight':
+      return <HighlightBlock text={block.text} color={block.color} />;
+    case 'definition':
+      return <DefinitionBlock items={block.items} />;
+    case 'proscons':
+      return <ProsConsBlock pros={block.pros} cons={block.cons} />;
+    case 'video':
+      return <VideoBlock src={block.src} platform={block.platform} title={block.title} />;
+    case 'divider':
+      return <DividerBlock dividerStyle={block.dividerStyle} text={block.text} />;
+    case 'linkcard':
+      return <LinkCardBlock url={block.url} title={block.title} description={block.description} image={block.image} />;
+    case 'rating':
+      return <RatingBlock items={block.items} />;
     default:
       return null;
   }

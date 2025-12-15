@@ -43,6 +43,16 @@ type ContentBlock =
   | {{ type: "comparison"; columns: string[]; rows: ComparisonRow[] }}  // 对比表
   | {{ type: "table"; headers: string[]; rows: string[][] }}  // 表格
   | {{ type: "code"; code: string; language?: string; title?: string }}  // 代码块
+  | {{ type: "accordion"; items: {{ question: string; answer: string }}[] }}  // 折叠面板/FAQ
+  | {{ type: "steps"; items: {{ step: number; title: string; description: string }}[] }}  // 步骤流程
+  | {{ type: "progress"; items: {{ label: string; value: number; max?: number }}[] }}  // 进度/评分条
+  | {{ type: "highlight"; text: string; color?: "yellow" | "blue" | "green" | "pink" }}  // 高亮文本框
+  | {{ type: "definition"; items: {{ term: string; definition: string }}[] }}  // 术语定义
+  | {{ type: "proscons"; pros: string[]; cons: string[] }}  // 优缺点对比
+  | {{ type: "video"; src: string; platform?: "youtube" | "bilibili" | "custom"; title?: string }}  // 视频嵌入
+  | {{ type: "divider"; dividerStyle?: "simple" | "decorated" | "text"; text?: string }}  // 分隔线
+  | {{ type: "linkcard"; url: string; title: string; description?: string; image?: string }}  // 链接卡片
+  | {{ type: "rating"; items: {{ label: string; score: number; maxScore?: number }}[] }}  // 评分展示
 
 // ⚠️ 【极其重要】ComparisonRow 必须是对象，不是数组！
 interface ComparisonRow {{
@@ -71,6 +81,15 @@ ContentBlock 示例：
 - 列表: {{"type": "list", "items": ["项目1", "项目2"], "style": "bullet"}}
 - 对比表: {{"type": "comparison", "columns": ["方案A", "方案B"], "rows": [{{"label": "价格", "values": ["免费", "付费"]}}]}}
 - 表格: {{"type": "table", "headers": ["列1", "列2"], "rows": [["数据1", "数据2"]]}}
+- 折叠: {{"type": "accordion", "items": [{{"question": "问题1", "answer": "回答1"}}]}}
+- 步骤: {{"type": "steps", "items": [{{"step": 1, "title": "第一步", "description": "描述"}}]}}
+- 进度: {{"type": "progress", "items": [{{"label": "完成度", "value": 75, "max": 100}}]}}
+- 高亮: {{"type": "highlight", "text": "重点内容", "color": "yellow"}}
+- 定义: {{"type": "definition", "items": [{{"term": "术语", "definition": "解释"}}]}}
+- 优缺点: {{"type": "proscons", "pros": ["优点1"], "cons": ["缺点1"]}}
+- 分隔: {{"type": "divider", "dividerStyle": "decorated"}}
+- 链接卡片: {{"type": "linkcard", "url": "https://example.com", "title": "链接标题", "description": "描述"}}
+- 评分: {{"type": "rating", "items": [{{"label": "评分项", "score": 4.5, "maxScore": 5}}]}}
 
 转换规则：
 1. 提取文章标题作为 title，副标题作为 subtitle
