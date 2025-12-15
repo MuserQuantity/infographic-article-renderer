@@ -161,6 +161,24 @@ const CalloutBlock = ({ text, title, variant = 'info' }: { text: string; title?:
   );
 };
 
+// 从可能是对象的列表项中提取文本
+const extractItemText = (item: unknown): string => {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object') {
+    // 尝试常见的文本字段名
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.text === 'string') return obj.text;
+    if (typeof obj.content === 'string') return obj.content;
+    if (typeof obj.title === 'string') return obj.title;
+    if (typeof obj.value === 'string') return obj.value;
+    if (typeof obj.label === 'string') return obj.label;
+    if (typeof obj.name === 'string') return obj.name;
+    // 如果有 description，也尝试
+    if (typeof obj.description === 'string') return obj.description;
+  }
+  return String(item ?? '');
+};
+
 const ListBlock = ({ items, title, style = 'bullet' }: { items: string[]; title?: string; style?: 'bullet' | 'check' | 'number' }) => (
   <div className="mb-10 pl-2">
     {title && <h4 className="font-bold text-stone-900 mb-6 text-base md:text-lg flex items-center gap-2 border-b border-stone-100 pb-2">
@@ -168,7 +186,7 @@ const ListBlock = ({ items, title, style = 'bullet' }: { items: string[]; title?
     </h4>}
     <ul className="space-y-4">
       {items.map((item, idx) => {
-        const safeItem = typeof item === 'string' ? item : String(item ?? '');
+        const safeItem = extractItemText(item);
         const content = safeItem.split(/(\*\*.*?\*\*)/g).map((part, i) =>
           part.startsWith('**') && part.endsWith('**')
             ? <span key={i} className="font-bold text-stone-900">{part.slice(2, -2)}</span>
