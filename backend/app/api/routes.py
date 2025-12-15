@@ -44,17 +44,23 @@ async def process_task(task_id: str, url: str, translate_to_chinese: bool = True
 
     except Exception as e:
         error_msg = str(e)
-        # 截断过长的错误信息（PocketBase 可能有长度限制）
-        if len(error_msg) > 5000:
-            error_msg = error_msg[:5000] + "... (truncated)"
+        # 记录详细错误到服务器日志
         logger.error(f"[Task {task_id}] Task failed with error: {error_msg}")
 
-        # Update task with error - 用额外的 try-except 确保不会再次失败
+        # 将错误翻译为用户友好的中文提示
+        try:
+            friendly_error = await llm_service.translate_error(error_msg)
+        except Exception:
+            friendly_error = "处理过程中发生错误，请稍后重试"
+
+        logger.info(f"[Task {task_id}] Translated error for user: {friendly_error}")
+
+        # Update task with friendly error - 用额外的 try-except 确保不会再次失败
         try:
             await db_service.update_task_status(
                 task_id,
                 "failed",
-                error=error_msg
+                error=friendly_error
             )
             logger.info(f"[Task {task_id}] Task status updated to 'failed'")
         except Exception as update_error:

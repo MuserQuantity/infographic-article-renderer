@@ -241,5 +241,44 @@ class LLMService:
             logger.error(f"Validation error: {e}")
             raise Exception(f"Failed to validate article structure: {e}")
 
+    async def translate_error(self, error_msg: str) -> str:
+        """将技术错误信息翻译为用户友好的中文提示。"""
+        # 常见错误的快速映射，避免调用 LLM
+        error_mappings = {
+            "Timeout": "页面加载超时，请稍后重试或检查网址是否正确",
+            "timeout": "页面加载超时，请稍后重试或检查网址是否正确",
+            "networkidle": "页面加载超时，该网站可能加载较慢，请稍后重试",
+            "Failed on navigating": "无法访问该网页，请检查网址是否正确或网站是否可访问",
+            "Crawl failed": "网页抓取失败，请检查网址是否有效",
+            "too short or empty": "网页内容为空或过短，无法生成文章",
+            "LLM returned empty": "AI 处理失败，请稍后重试",
+            "Failed to parse": "内容解析失败，请稍后重试",
+            "Failed to validate": "文章格式验证失败，请稍后重试",
+            "Connection refused": "服务连接失败，请稍后重试",
+            "Connection error": "网络连接错误，请检查网络后重试",
+        }
+
+        # 检查是否匹配已知错误
+        for key, friendly_msg in error_mappings.items():
+            if key.lower() in error_msg.lower():
+                return friendly_msg
+
+        # 如果没有匹配，尝试用 LLM 翻译
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是一个错误信息翻译助手。将技术错误信息翻译为简洁友好的中文提示，不超过50字。"},
+                    {"role": "user", "content": f"请将以下错误信息翻译为用户友好的中文提示：\n{error_msg[:500]}"}
+                ],
+                temperature=0.3,
+                max_tokens=100
+            )
+            translated = response.choices[0].message.content
+            return translated.strip() if translated else "处理过程中发生错误，请稍后重试"
+        except Exception:
+            # LLM 调用失败时的 fallback
+            return "处理过程中发生错误，请稍后重试"
+
 
 llm_service = LLMService()
