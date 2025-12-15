@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, HttpUrl, model_validator
 from typing import Optional, Literal, Any, Union
 from datetime import datetime
 
@@ -66,41 +66,47 @@ class ContentBlock(BaseModel):
     src: Optional[str] = None
     alt: Optional[str] = None
     caption: Optional[str] = None
-    # Comparison specific
-    rows: Optional[list[ComparisonRow]] = None
+    # Comparison: list[ComparisonRow], Table: list[list[str]]
+    rows: Optional[Union[list[ComparisonRow], list[list[str]]]] = None
     # Table specific
     headers: Optional[list[str]] = None
     # Code specific
     code: Optional[str] = None
     language: Optional[str] = None
 
-    @field_validator("rows", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def convert_list_rows_to_comparison_rows(cls, v):
+    def convert_comparison_rows(cls, data):
         """
-        自动将列表格式的 rows 转换为 ComparisonRow 格式。
+        只对 comparison 类型的 block 转换 rows 格式。
         ['label', 'val1', 'val2'] -> {'label': 'label', 'values': ['val1', 'val2']}
+        table 类型的 rows 保持 string[][] 格式不变。
         """
-        if v is None:
-            return v
-        if not isinstance(v, list):
-            return v
+        if not isinstance(data, dict):
+            return data
 
-        converted = []
-        for row in v:
-            if isinstance(row, list) and len(row) >= 1:
-                # 列表格式，转换为 ComparisonRow 格式
-                converted.append({
-                    "label": str(row[0]),
-                    "values": [str(val) for val in row[1:]]
-                })
-            elif isinstance(row, dict):
-                # 已经是正确格式
-                converted.append(row)
-            else:
-                # 其他情况，尝试转换
-                converted.append({"label": str(row), "values": []})
-        return converted
+        block_type = data.get("type")
+        rows = data.get("rows")
+
+        # 只对 comparison 类型进行转换
+        if block_type == "comparison" and rows and isinstance(rows, list):
+            converted = []
+            for row in rows:
+                if isinstance(row, list) and len(row) >= 1:
+                    # 列表格式，转换为 ComparisonRow 格式
+                    converted.append({
+                        "label": str(row[0]),
+                        "values": [str(val) for val in row[1:]]
+                    })
+                elif isinstance(row, dict):
+                    # 已经是正确格式
+                    converted.append(row)
+                else:
+                    # 其他情况，尝试转换
+                    converted.append({"label": str(row), "values": []})
+            data["rows"] = converted
+
+        return data
 
 
 class ArticleSection(BaseModel):
