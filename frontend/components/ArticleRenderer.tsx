@@ -48,19 +48,57 @@ import {
 // --- Sub-Components ---
 
 const ParagraphBlock = ({ text }: { text: string }) => {
-  const parseBold = (str: string) => {
-    const parts = str.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-bold text-stone-900 bg-amber-100/60 px-1 rounded-sm">{part.slice(2, -2)}</strong>;
+  const parseMarkdown = (str: string): React.ReactNode[] => {
+    // 匹配粗体 **text** 和链接 [text](url)
+    const combinedRegex = /(\*\*.*?\*\*|\[([^\]]+)\]\(([^)]+)\))/g;
+    const result: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    let keyIndex = 0;
+
+    while ((match = combinedRegex.exec(str)) !== null) {
+      // 添加匹配前的普通文本
+      if (match.index > lastIndex) {
+        result.push(str.slice(lastIndex, match.index));
       }
-      return part;
-    });
+
+      const fullMatch = match[0];
+      if (fullMatch.startsWith('**') && fullMatch.endsWith('**')) {
+        // 粗体
+        result.push(
+          <strong key={keyIndex++} className="font-bold text-stone-900 bg-amber-100/60 px-1 rounded-sm">
+            {fullMatch.slice(2, -2)}
+          </strong>
+        );
+      } else if (match[2] && match[3]) {
+        // 链接 [text](url)
+        result.push(
+          <a
+            key={keyIndex++}
+            href={match[3]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-amber-700 hover:text-amber-900 underline decoration-amber-300 hover:decoration-amber-500 underline-offset-2 transition-colors"
+          >
+            {match[2]}
+          </a>
+        );
+      }
+
+      lastIndex = match.index + fullMatch.length;
+    }
+
+    // 添加剩余的文本
+    if (lastIndex < str.length) {
+      result.push(str.slice(lastIndex));
+    }
+
+    return result.length > 0 ? result : [str];
   };
 
   return (
     <p className="text-stone-700 leading-7 md:leading-8 mb-6 text-base md:text-lg tracking-wide text-justify font-normal">
-      {parseBold(text)}
+      {parseMarkdown(text)}
     </p>
   );
 };
