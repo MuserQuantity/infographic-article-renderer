@@ -10,7 +10,7 @@ class CrawlerService:
 
     async def crawl_url(self, url: str) -> str:
         """Call crawl4ai service to crawl URL and return markdown content."""
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
                 f"{self.base_url}/crawl",
                 json={
@@ -18,9 +18,22 @@ class CrawlerService:
                     "crawler_config": {
                         "type": "CrawlerRunConfig",
                         "params": {
-                            "css_selector": "article, main, .post, .content, .entry-content, [role='main']",
-                            "wait_until": "domcontentloaded",
-                            "delay_before_return_html": 2.0,
+                            # 内容选择器，覆盖常见网站结构（包括 MSN）
+                            "css_selector": "article, main, .post, .content, .entry-content, [role='main'], .article-body, .story-body, #article-body, .cp-article, [data-content], .articlecontent, #content",
+                            # 等待策略 - 使用 load 等待 JS 渲染
+                            "wait_until": "load",
+                            "delay_before_return_html": 5.0,
+                            "page_timeout": 120000,
+                            # 模拟真实浏览器
+                            "simulate_user": True,
+                            "magic": True,
+                            # 执行 JS 滚动以触发懒加载
+                            "js_code": "window.scrollTo(0, document.body.scrollHeight / 2); await new Promise(r => setTimeout(r, 1000)); window.scrollTo(0, 0);",
+                            "headers": {
+                                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                                "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+                            },
                             "scraping_strategy": {
                                 "type": "LXMLWebScrapingStrategy",
                                 "params": {}
