@@ -47,7 +47,79 @@ import {
 
 // --- Sub-Components ---
 
-const ParagraphBlock = ({ text }: { text: string }) => {
+// 智能链接组件 - 悬停显示菜单
+const SmartLink = ({ href, children, onAnalyze }: { href: string; children: React.ReactNode; onAnalyze?: (url: string) => void }) => {
+  const [showMenu, setShowMenu] = React.useState(false);
+  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setShowMenu(true);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => setShowMenu(false), 150);
+  };
+
+  const handleAnalyze = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onAnalyze) {
+      onAnalyze(href);
+    } else {
+      // 默认行为：在当前页面导航到分析该 URL
+      window.location.href = `/?url=${encodeURIComponent(href)}`;
+    }
+    setShowMenu(false);
+  };
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.open(href, '_blank', 'noopener,noreferrer');
+    setShowMenu(false);
+  };
+
+  return (
+    <span
+      className="relative inline-block"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <a
+        href={href}
+        onClick={(e) => e.preventDefault()}
+        className="text-amber-700 hover:text-amber-900 underline decoration-amber-300 hover:decoration-amber-500 underline-offset-2 transition-colors cursor-pointer"
+      >
+        {children}
+      </a>
+      {showMenu && (
+        <div
+          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-xl border border-stone-200 py-1 min-w-[160px] animate-in fade-in slide-in-from-top-1 duration-150"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          <button
+            onClick={handleOpen}
+            className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2 transition-colors"
+          >
+            <ExternalLink className="w-4 h-4 text-stone-400" />
+            打开链接
+          </button>
+          <button
+            onClick={handleAnalyze}
+            className="w-full px-4 py-2 text-left text-sm text-amber-700 hover:bg-amber-50 flex items-center gap-2 transition-colors"
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            分析此文章
+          </button>
+        </div>
+      )}
+    </span>
+  );
+};
+
+const ParagraphBlock = ({ text, onAnalyzeLink }: { text: string; onAnalyzeLink?: (url: string) => void }) => {
   const parseMarkdown = (str: string): React.ReactNode[] => {
     // 确保 str 是字符串
     if (typeof str !== 'string') {
@@ -76,17 +148,11 @@ const ParagraphBlock = ({ text }: { text: string }) => {
           </strong>
         );
       } else if (match[2] && match[3]) {
-        // 链接 [text](url)
+        // 链接 [text](url) - 使用智能链接组件
         result.push(
-          <a
-            key={keyIndex++}
-            href={match[3]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-amber-700 hover:text-amber-900 underline decoration-amber-300 hover:decoration-amber-500 underline-offset-2 transition-colors"
-          >
+          <SmartLink key={keyIndex++} href={match[3]} onAnalyze={onAnalyzeLink}>
             {match[2]}
-          </a>
+          </SmartLink>
         );
       }
 
@@ -749,10 +815,10 @@ const RatingBlock = ({ items }: { items: RatingItem[] }) => {
 
 // --- Main Block Switcher ---
 
-const BlockRenderer: React.FC<{ block: ContentBlock }> = ({ block }) => {
+const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: string) => void }> = ({ block, onAnalyzeLink }) => {
   switch (block.type) {
     case 'paragraph':
-      return <ParagraphBlock text={block.text} />;
+      return <ParagraphBlock text={block.text} onAnalyzeLink={onAnalyzeLink} />;
     case 'quote':
       return <QuoteBlock text={block.text} author={block.author} />;
     case 'callout':
@@ -802,7 +868,7 @@ const BlockRenderer: React.FC<{ block: ContentBlock }> = ({ block }) => {
 
 // --- Section Renderer ---
 
-const SectionRenderer: React.FC<{ section: ArticleSection; index: number }> = ({ section, index }) => (
+const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
   <div className="mb-16 md:mb-20 last:mb-0 relative">
     <div className="flex items-baseline gap-3 md:gap-4 mb-8 md:mb-10 border-b-2 border-black pb-4">
       <div className="text-3xl md:text-4xl font-serif font-black text-stone-200 opacity-50">
@@ -814,7 +880,7 @@ const SectionRenderer: React.FC<{ section: ArticleSection; index: number }> = ({
     </div>
     <div className="max-w-3xl mx-auto">
       {section.content.map((block, idx) => (
-        <BlockRenderer key={idx} block={block} />
+        <BlockRenderer key={idx} block={block} onAnalyzeLink={onAnalyzeLink} />
       ))}
     </div>
   </div>
@@ -824,16 +890,17 @@ const SectionRenderer: React.FC<{ section: ArticleSection; index: number }> = ({
 
 interface ArticleRendererProps {
   data: ArticleData;
+  onAnalyzeLink?: (url: string) => void;
 }
 
-export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data }) => {
+export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyzeLink }) => {
   return (
     <div className="max-w-5xl mx-auto bg-white min-h-[1000px] shadow-2xl shadow-stone-900/10 overflow-hidden rounded-none md:rounded-2xl ring-1 ring-slate-900/5 transition-all">
       {/* Header */}
       <header className="bg-stone-900 text-white p-8 md:p-24 relative overflow-hidden">
         {/* Subtle noise texture or pattern could go here */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
-        
+
         <div className="relative z-10 max-w-3xl mx-auto text-center md:text-left">
           <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-stone-400 uppercase tracking-widest mb-8 justify-center md:justify-start">
             {data.meta?.date && (
@@ -847,11 +914,11 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data }) => {
               </span>
             )}
           </div>
-          
+
           <h1 className="text-4xl md:text-7xl font-serif font-black mb-8 md:mb-10 leading-tight text-stone-50">
             {data.title}
           </h1>
-          
+
           {data.subtitle && (
             <p className="text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-4 md:pl-6 mx-auto md:mx-0 text-left">
               {data.subtitle}
@@ -875,9 +942,9 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data }) => {
       {/* Content Body */}
       <main className="p-6 md:p-20 bg-white">
         {data.sections.map((section, idx) => (
-          <SectionRenderer key={idx} section={section} index={idx} />
+          <SectionRenderer key={idx} section={section} index={idx} onAnalyzeLink={onAnalyzeLink} />
         ))}
-        
+
         <footer className="mt-32 pt-12 border-t border-stone-100 text-center">
           <p className="text-stone-400 text-sm font-medium flex items-center justify-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-500" />

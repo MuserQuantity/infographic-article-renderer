@@ -176,6 +176,12 @@ export default function App() {
     updateBrowserUrl(null);
   };
 
+  // 分析文章中的链接
+  const handleAnalyzeLink = (url: string) => {
+    setInputUrl(url);
+    fetchArticle(url, false, translateToChinese);
+  };
+
   // 初始化：检查 URL 参数
   useEffect(() => {
     const url = getUrlParam();
@@ -354,7 +360,7 @@ export default function App() {
       {/* 主内容区 */}
       <div className="w-full min-h-screen scroll-smooth p-4 md:p-8 lg:p-12 flex flex-col items-center">
         {articleData ? (
-          <ArticleRenderer data={articleData} />
+          <ArticleRenderer data={articleData} onAnalyzeLink={handleAnalyzeLink} />
         ) : (
           <div className="flex items-center justify-center h-screen text-stone-500">
             <p>没有数据</p>
