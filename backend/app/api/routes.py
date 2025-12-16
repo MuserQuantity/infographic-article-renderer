@@ -9,6 +9,7 @@ from app.models import (
 from app.services.database import db_service
 from app.services.crawler import crawler_service
 from app.services.llm import llm_service
+from app.services.image_service import image_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,17 @@ async def process_task(task_id: str, url: str, translate_to_chinese: bool = True
         article_data = await llm_service.convert_to_article_json(markdown_content, translate_to_chinese)
         logger.info(f"[Task {task_id}] LLM conversion completed successfully")
 
-        # Step 3: Update task with result
-        logger.info(f"[Task {task_id}] Step 3: Updating task with result...")
+        # Step 3: Process images (download and upload to PocketBase)
+        logger.info(f"[Task {task_id}] Step 3: Processing images...")
+        article_dict = article_data.model_dump()
+        article_dict = await image_service.process_article_images(article_dict)
+        # 重新创建 ArticleData 对象
+        from app.models import ArticleData
+        article_data = ArticleData(**article_dict)
+        logger.info(f"[Task {task_id}] Image processing completed")
+
+        # Step 4: Update task with result
+        logger.info(f"[Task {task_id}] Step 4: Updating task with result...")
         await db_service.update_task_status(
             task_id,
             "completed",

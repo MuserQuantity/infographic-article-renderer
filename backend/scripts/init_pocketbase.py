@@ -84,76 +84,130 @@ def init_pocketbase():
 
     existing_collections = [c["name"] for c in collections_response.json().get("items", [])]
 
-    if "tasks" in existing_collections:
-        print("Collection 'tasks' already exists. Skipping creation.")
-        return
+    # 3. Create infographic_tasks collection if not exists
+    if "infographic_tasks" not in existing_collections:
+        print("Creating 'infographic_tasks' collection...")
+        tasks_schema = {
+            "name": "infographic_tasks",
+            "type": "base",
+            "schema": [
+                {
+                    "name": "url",
+                    "type": "url",
+                    "required": True,
+                    "options": {
+                        "exceptDomains": [],
+                        "onlyDomains": []
+                    }
+                },
+                {
+                    "name": "status",
+                    "type": "select",
+                    "required": True,
+                    "options": {
+                        "maxSelect": 1,
+                        "values": ["pending", "processing", "completed", "failed"]
+                    }
+                },
+                {
+                    "name": "result",
+                    "type": "json",
+                    "required": False,
+                    "options": {
+                        "maxSize": 5242880
+                    }
+                },
+                {
+                    "name": "error",
+                    "type": "text",
+                    "required": False,
+                    "options": {
+                        "min": None,
+                        "max": 10000,
+                        "pattern": ""
+                    }
+                }
+            ],
+            "indexes": [
+                "CREATE INDEX idx_infographic_tasks_url ON infographic_tasks (url)",
+                "CREATE INDEX idx_infographic_tasks_status ON infographic_tasks (status)"
+            ],
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": "",
+            "deleteRule": ""
+        }
 
-    # 3. Create collection
-    print("Creating 'tasks' collection...")
-    collection_schema = {
-        "name": "tasks",
-        "type": "base",
-        "schema": [
-            {
-                "name": "url",
-                "type": "url",
-                "required": True,
-                "options": {
-                    "exceptDomains": [],
-                    "onlyDomains": []
-                }
-            },
-            {
-                "name": "status",
-                "type": "select",
-                "required": True,
-                "options": {
-                    "maxSelect": 1,
-                    "values": ["pending", "processing", "completed", "failed"]
-                }
-            },
-            {
-                "name": "result",
-                "type": "json",
-                "required": False,
-                "options": {
-                    "maxSize": 5242880
-                }
-            },
-            {
-                "name": "error",
-                "type": "text",
-                "required": False,
-                "options": {
-                    "min": None,
-                    "max": 10000,
-                    "pattern": ""
-                }
-            }
-        ],
-        "indexes": [
-            "CREATE INDEX idx_tasks_url ON tasks (url)",
-            "CREATE INDEX idx_tasks_status ON tasks (status)"
-        ],
-        "listRule": "",
-        "viewRule": "",
-        "createRule": "",
-        "updateRule": "",
-        "deleteRule": ""
-    }
+        create_response = httpx.post(
+            f"{POCKETBASE_URL}/api/collections",
+            json=tasks_schema,
+            headers=headers,
+            timeout=30.0
+        )
 
-    create_response = httpx.post(
-        f"{POCKETBASE_URL}/api/collections",
-        json=collection_schema,
-        headers=headers,
-        timeout=30.0
-    )
-
-    if create_response.status_code in [200, 201]:
-        print("Collection 'tasks' created successfully!")
+        if create_response.status_code in [200, 201]:
+            print("Collection 'infographic_tasks' created successfully!")
+        else:
+            print(f"Failed to create collection: {create_response.text}")
     else:
-        print(f"Failed to create collection: {create_response.text}")
-        sys.exit(1)
+        print("Collection 'infographic_tasks' already exists. Skipping.")
+
+    # 4. Create infographic_images collection for image storage
+    if "infographic_images" not in existing_collections:
+        print("Creating 'infographic_images' collection...")
+        images_schema = {
+            "name": "infographic_images",
+            "type": "base",
+            "schema": [
+                {
+                    "name": "image",
+                    "type": "file",
+                    "required": True,
+                    "options": {
+                        "maxSelect": 1,
+                        "maxSize": 10485760,  # 10MB
+                        "mimeTypes": [
+                            "image/jpeg",
+                            "image/png",
+                            "image/gif",
+                            "image/webp",
+                            "image/svg+xml"
+                        ],
+                        "thumbs": ["100x100", "300x300"]
+                    }
+                },
+                {
+                    "name": "original_url",
+                    "type": "text",
+                    "required": False,
+                    "options": {
+                        "min": None,
+                        "max": 2000,
+                        "pattern": ""
+                    }
+                }
+            ],
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": "",
+            "deleteRule": ""
+        }
+
+        create_response = httpx.post(
+            f"{POCKETBASE_URL}/api/collections",
+            json=images_schema,
+            headers=headers,
+            timeout=30.0
+        )
+
+        if create_response.status_code in [200, 201]:
+            print("Collection 'infographic_images' created successfully!")
+        else:
+            print(f"Failed to create images collection: {create_response.text}")
+    else:
+        print("Collection 'infographic_images' already exists. Skipping.")
 
 
 if __name__ == "__main__":
