@@ -94,10 +94,15 @@ ContentBlock 示例：
 转换规则：
 1. 提取文章标题作为 title，副标题作为 subtitle
 2. 尽量提取作者、日期信息到 meta
-3. 根据内容逻辑划分为多个 sections
+3. 根据内容逻辑划分为多个 sections，每个大的主题或章节应该是一个独立的 section
 4. 根据内容特点选择合适的 ContentBlock 类型
-5. 【重要】JSON 文本不要包含 markdown 语法（">"、"-"、"#" 等）
+5. 【极其重要】JSON 文本中绝对不要包含 markdown 语法：
+   - 不要出现 "#"、"##"、"###"、"####" 等标题语法
+   - 不要出现 ">"、"-"、"*" 等列表或引用语法
+   - 如果原文有子标题（如 "3.2 深圳：xxx"），应该创建新的 section 或使用 highlight block，而不是放在 paragraph 中
+   - 如果有编号列表内容，使用 list block 的 "number" style
 6. 过滤掉广告、订阅提示、社交媒体引导等非正文内容
+7. 子标题处理：如果文章中有类似 "3.1 xxx"、"第一部分：xxx" 这样的子标题，应该作为新 section 的 title，或者用 highlight block 突出显示
 
 {language_instruction}
 
