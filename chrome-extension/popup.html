@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infographic Analyzer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      width: 320px;
+      background: #1c1917;
+      color: #e7e5e4;
+      padding: 16px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #44403c;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo svg {
+      width: 18px;
+      height: 18px;
+      fill: white;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .current-url {
+      background: #292524;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #a8a29e;
+      word-break: break-all;
+      max-height: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .settings {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #44403c;
+    }
+
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 8px 0;
+      color: #a8a29e;
+      font-size: 12px;
+    }
+
+    .settings-toggle:hover {
+      color: #e7e5e4;
+    }
+
+    .settings-toggle svg {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.2s;
+    }
+
+    .settings-toggle.open svg {
+      transform: rotate(180deg);
+    }
+
+    .settings-content {
+      display: none;
+      padding-top: 12px;
+    }
+
+    .settings-content.open {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      color: #a8a29e;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #292524;
+      border: 1px solid #44403c;
+      border-radius: 8px;
+      color: #e7e5e4;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: #6366f1;
+    }
+
+    .form-input::placeholder {
+      color: #78716c;
+    }
+
+    .btn-save {
+      background: #44403c;
+      color: #e7e5e4;
+      font-size: 12px;
+      padding: 8px 12px;
+    }
+
+    .btn-save:hover {
+      background: #57534e;
+    }
+
+    .saved-msg {
+      color: #22c55e;
+      font-size: 12px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .saved-msg.show {
+      display: block;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #6366f1;
+    }
+
+    .checkbox-group label {
+      font-size: 13px;
+      color: #a8a29e;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 3l1.5 4.5H18l-3.5 2.5 1.5 4.5L12 12l-4 2.5 1.5-4.5L6 7.5h4.5L12 3z"/>
+      </svg>
+    </div>
+    <div class="title">Infographic Analyzer</div>
+  </div>
+
+  <div class="current-url" id="currentUrl">加载中...</div>
+
+  <div class="checkbox-group">
+    <input type="checkbox" id="translateCheck" checked>
+    <label for="translateCheck">翻译为中文</label>
+  </div>
+
+  <button class="btn btn-primary" id="analyzeBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 3l1.5 4.5H18l-3.5 2.5 1.5 4.5L12 12l-4 2.5 1.5-4.5L6 7.5h4.5L12 3z"/>
+    </svg>
+    分析此页面
+  </button>
+
+  <div class="settings">
+    <div class="settings-toggle" id="settingsToggle">
+      <span>设置</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </div>
+    <div class="settings-content" id="settingsContent">
+      <div class="form-group">
+        <label class="form-label">服务域名</label>
+        <input type="text" class="form-input" id="serverUrl" placeholder="https://your-domain.com">
+      </div>
+      <button class="btn btn-save" id="saveBtn">保存设置</button>
+      <div class="saved-msg" id="savedMsg">设置已保存</div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

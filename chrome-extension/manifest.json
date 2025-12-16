@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Infographic Article Analyzer",
+  "description": "一键将当前页面发送到信息图分析网站",
+  "version": "1.0.0",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "分析此页面",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ]
+}
