@@ -28,7 +28,7 @@ class CrawlerService:
                             "simulate_user": True,
                             "magic": True,
                             # 执行 JS 滚动以触发懒加载
-                            "js_code": "window.scrollTo(0, document.body.scrollHeight / 2); await new Promise(r => setTimeout(r, 1000)); window.scrollTo(0, 0);",
+                            "js_code": "window.scrollTo(0, document.body.scrollHeight / 2); setTimeout(() => window.scrollTo(0, 0), 1000);",
                             "headers": {
                                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",

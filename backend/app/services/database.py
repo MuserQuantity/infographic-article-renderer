@@ -1,4 +1,5 @@
 import httpx
+from urllib.parse import quote
 from typing import Optional
 from datetime import datetime
 from app.config import get_settings
@@ -147,7 +148,8 @@ class PocketBaseService:
     async def get_task_by_url(self, url: str) -> Optional[Task]:
         """Find a task by URL."""
         try:
-            filter_query = f'url="{url}"'
+            # URL 编码 filter 查询参数
+            filter_query = quote(f'url="{url}"', safe='')
             response = await self._request(
                 "GET",
                 f"{self.api_url}?filter={filter_query}&sort=-created"
@@ -157,6 +159,9 @@ class PocketBaseService:
                 return self._parse_task(items[0])
             return None
         except httpx.HTTPStatusError:
+            return None
+        except Exception:
+            # 捕获所有异常，避免查询失败导致重复创建
             return None
 
     async def get_task_by_id(self, task_id: str) -> Optional[Task]:
@@ -175,8 +180,16 @@ class PocketBaseService:
             "result": None,
             "error": None
         }
-        response = await self._request("POST", self.api_url, json_data=data)
-        return self._parse_task(response)
+        try:
+            response = await self._request("POST", self.api_url, json_data=data)
+            return self._parse_task(response)
+        except httpx.HTTPStatusError as e:
+            # 如果是 400 错误，可能是 URL 已存在，尝试查询并返回
+            if e.response.status_code == 400:
+                existing = await self.get_task_by_url(url)
+                if existing:
+                    return existing
+            raise
 
     async def update_task_status(
         self,
