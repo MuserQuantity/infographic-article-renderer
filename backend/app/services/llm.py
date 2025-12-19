@@ -67,7 +67,7 @@ def extract_json_from_response(content: str) -> str:
     logger.warning("Could not find complete JSON object, returning from first '{'")
     return content[json_start:]
 
-SYSTEM_PROMPT = """你是一个专业的内容结构化助手。你的任务是将文章内容转换为结构化的 JSON 格式。"""
+SYSTEM_PROMPT = """你是一个专业的内容结构化助手。你的任务是将文章内容转换为结构化的 JSON 格式。不要输出思维链过程。"""
 
 USER_PROMPT_TEMPLATE = """请将以下文章内容转换为结构化 JSON 格式，用于信息图文章渲染器。
 
