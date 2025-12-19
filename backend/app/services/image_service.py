@@ -1,17 +1,25 @@
 import httpx
 import hashlib
 import logging
-from typing import Optional
+import io
+from typing import Optional, Tuple
 from urllib.parse import urlparse
+from PIL import Image
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
 class ImageService:
-    """处理文章中的图片：下载并上传到 PocketBase 存储"""
+    """处理文章中的图片：下载、压缩并上传到 PocketBase 存储"""
 
     COLLECTION = "infographic_images"
+
+    # 压缩配置
+    MAX_WIDTH = 1920  # 最大宽度
+    MAX_HEIGHT = 1920  # 最大高度
+    JPEG_QUALITY = 85  # JPEG 压缩质量 (1-100)
+    PNG_COMPRESS_LEVEL = 6  # PNG 压缩级别 (0-9)
 
     def __init__(self):
         settings = get_settings()
@@ -73,6 +81,71 @@ class ImageService:
 
         return '.jpg'  # 默认
 
+    def _compress_image(self, image_data: bytes, content_type: str) -> Tuple[bytes, str, str]:
+        """
+        压缩图片，返回 (压缩后的数据, 新的content_type, 新的扩展名)
+        """
+        try:
+            # 打开图片
+            img = Image.open(io.BytesIO(image_data))
+            original_size = len(image_data)
+
+            # 跳过 SVG 和 GIF（动图）
+            if content_type and ('svg' in content_type.lower() or 'gif' in content_type.lower()):
+                logger.debug("Skipping compression for SVG/GIF")
+                return image_data, content_type, self._get_file_extension("", content_type)
+
+            # 如果是 GIF 且有多帧，跳过压缩
+            if getattr(img, 'n_frames', 1) > 1:
+                logger.debug("Skipping compression for animated image")
+                return image_data, content_type, self._get_file_extension("", content_type)
+
+            # 转换模式（如果需要）
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # 有透明通道，保存为 PNG
+                output_format = 'PNG'
+                new_content_type = 'image/png'
+                new_extension = '.png'
+            else:
+                # 转换为 RGB，保存为 JPEG（压缩效果更好）
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                output_format = 'JPEG'
+                new_content_type = 'image/jpeg'
+                new_extension = '.jpg'
+
+            # 调整尺寸（如果超过最大值）
+            width, height = img.size
+            if width > self.MAX_WIDTH or height > self.MAX_HEIGHT:
+                ratio = min(self.MAX_WIDTH / width, self.MAX_HEIGHT / height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                logger.info(f"Resized image from {width}x{height} to {new_width}x{new_height}")
+
+            # 压缩并保存到内存
+            output = io.BytesIO()
+            if output_format == 'JPEG':
+                img.save(output, format='JPEG', quality=self.JPEG_QUALITY, optimize=True)
+            else:
+                img.save(output, format='PNG', optimize=True, compress_level=self.PNG_COMPRESS_LEVEL)
+
+            compressed_data = output.getvalue()
+            compressed_size = len(compressed_data)
+
+            # 只有压缩后更小才使用压缩版本
+            if compressed_size < original_size:
+                ratio = (1 - compressed_size / original_size) * 100
+                logger.info(f"Image compressed: {original_size} -> {compressed_size} bytes ({ratio:.1f}% smaller)")
+                return compressed_data, new_content_type, new_extension
+            else:
+                logger.debug(f"Compression not effective, using original")
+                return image_data, content_type, self._get_file_extension("", content_type)
+
+        except Exception as e:
+            logger.warning(f"Failed to compress image: {e}")
+            return image_data, content_type, self._get_file_extension("", content_type)
+
     async def download_and_upload_image(self, image_url: str) -> Optional[str]:
         """
         下载图片并上传到 PocketBase，返回新的 URL
@@ -113,9 +186,11 @@ class ImageService:
                     logger.warning(f"Image too small, might be invalid")
                     return None
 
+            # 压缩图片
+            image_data, content_type, extension = self._compress_image(image_data, content_type)
+
             # 生成文件名（使用 URL hash）
             url_hash = hashlib.md5(image_url.encode()).hexdigest()[:12]
-            extension = self._get_file_extension(image_url, content_type)
             filename = f"{url_hash}{extension}"
 
             # 上传到 PocketBase
