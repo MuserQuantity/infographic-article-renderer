@@ -6,6 +6,67 @@ from app.models import ArticleData
 
 logger = logging.getLogger(__name__)
 
+
+def extract_json_from_response(content: str) -> str:
+    """
+    从 LLM 响应中提取 JSON 部分。
+    某些模型（如 Gemini）可能在 JSON 前输出思考过程文本，需要提取纯 JSON。
+    """
+    if not content:
+        return content
+
+    # 如果内容已经是以 { 开头，直接返回
+    content_stripped = content.strip()
+    if content_stripped.startswith('{'):
+        return content_stripped
+
+    # 尝试找到 JSON 对象的开始位置（第一个 {）
+    json_start = content.find('{')
+    if json_start == -1:
+        logger.warning("No JSON object found in response")
+        return content
+
+    # 从 { 开始，找到匹配的 }
+    # 使用简单的括号计数来找到完整的 JSON 对象
+    brace_count = 0
+    json_end = -1
+    in_string = False
+    escape_next = False
+
+    for i in range(json_start, len(content)):
+        char = content[i]
+
+        if escape_next:
+            escape_next = False
+            continue
+
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+
+        if not in_string:
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    json_end = i + 1
+                    break
+
+    if json_end > json_start:
+        extracted = content[json_start:json_end]
+        if json_start > 0:
+            logger.info(f"Extracted JSON from response (skipped {json_start} chars of prefix text)")
+        return extracted
+
+    # 如果无法找到完整的 JSON，返回从 { 开始的内容
+    logger.warning("Could not find complete JSON object, returning from first '{'")
+    return content[json_start:]
+
 SYSTEM_PROMPT = """你是一个专业的内容结构化助手。你的任务是将文章内容转换为结构化的 JSON 格式。"""
 
 USER_PROMPT_TEMPLATE = """请将以下文章内容转换为结构化 JSON 格式，用于信息图文章渲染器。
@@ -244,6 +305,9 @@ class LLMService:
 
         logger.info(f"LLM response received, length={len(content)}")
         logger.debug(f"LLM raw response: {content[:500]}...")
+
+        # 提取 JSON 部分（处理 Gemini 等模型在 JSON 前输出思考文本的情况）
+        content = extract_json_from_response(content)
 
         try:
             data = json.loads(content)
