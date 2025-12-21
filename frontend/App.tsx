@@ -7,6 +7,7 @@ import {
   RefreshCw,
   ExternalLink,
   Link,
+  FileText,
   Sparkles,
   ArrowRight,
   X
@@ -31,9 +32,12 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const [articleUrl, setArticleUrl] = useState<string | null>(null);
+  const [sourceType, setSourceType] = useState<'url' | 'text' | null>(null);
 
   // 输入框状态
   const [inputUrl, setInputUrl] = useState('');
+  const [inputText, setInputText] = useState('');
+  const [inputMode, setInputMode] = useState<'url' | 'text'>('url');
   const [showInput, setShowInput] = useState(true);
   const [translateToChinese, setTranslateToChinese] = useState(true);
 
@@ -65,6 +69,7 @@ export default function App() {
     setError(null);
     setTaskStatus('creating');
     setArticleUrl(url);
+    setSourceType('url');
     setShowInput(false);
 
     // 更新浏览器地址栏
@@ -98,6 +103,49 @@ export default function App() {
       }
 
       // 轮询任务状态
+      await pollTaskStatus(task.id);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setLoading(false);
+      setTaskStatus(null);
+    }
+  }, []);
+
+  const fetchArticleFromText = useCallback(async (content: string, translate: boolean = true) => {
+    setLoading(true);
+    setError(null);
+    setTaskStatus('creating');
+    setArticleUrl(null);
+    setSourceType('text');
+    setShowInput(false);
+
+    updateBrowserUrl(null);
+
+    try {
+      const createResponse = await fetch(`${API_BASE_URL}/api/tasks/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, translate_to_chinese: translate })
+      });
+
+      if (!createResponse.ok) {
+        throw new Error(`Failed to create task: ${createResponse.statusText}`);
+      }
+
+      const task: TaskResponse = await createResponse.json();
+
+      if (task.status === 'completed' && task.result) {
+        setArticleData(task.result);
+        setLoading(false);
+        setTaskStatus(null);
+        return;
+      }
+
+      if (task.status === 'failed') {
+        throw new Error(task.error || 'Task failed');
+      }
+
       await pollTaskStatus(task.id);
 
     } catch (err) {
@@ -153,16 +201,22 @@ export default function App() {
 
   // 强制刷新
   const handleRefresh = () => {
-    if (articleUrl) {
+    if (sourceType === 'url' && articleUrl) {
       fetchArticle(articleUrl, true, translateToChinese);
+    }
+    if (sourceType === 'text' && inputText.trim()) {
+      fetchArticleFromText(inputText.trim(), translateToChinese);
     }
   };
 
   // 提交 URL
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputUrl.trim()) {
+    if (inputMode === 'url' && inputUrl.trim()) {
       fetchArticle(inputUrl.trim(), false, translateToChinese);
+    }
+    if (inputMode === 'text' && inputText.trim()) {
+      fetchArticleFromText(inputText.trim(), translateToChinese);
     }
   };
 
@@ -172,12 +226,14 @@ export default function App() {
     setArticleData(null);
     setError(null);
     setArticleUrl(null);
+    setSourceType(null);
     // 清除地址栏参数
     updateBrowserUrl(null);
   };
 
   // 分析文章中的链接
   const handleAnalyzeLink = (url: string) => {
+    setInputMode('url');
     setInputUrl(url);
     fetchArticle(url, false, translateToChinese);
   };
@@ -188,6 +244,7 @@ export default function App() {
     const forceRefresh = getForceRefresh();
 
     if (url) {
+      setInputMode('url');
       setInputUrl(url);
       fetchArticle(url, forceRefresh);
     }
@@ -204,24 +261,64 @@ export default function App() {
               <Sparkles className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold text-white mb-3">Infographic Renderer</h1>
-            <p className="text-stone-400">输入文章链接，生成精美信息图</p>
+            <p className="text-stone-400">输入文章链接或粘贴文本，生成精美信息图</p>
           </div>
 
           {/* 输入表单 */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-500">
-                <Link className="w-5 h-5" />
-              </div>
-              <input
-                type="url"
-                value={inputUrl}
-                onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="https://example.com/article"
-                className="w-full bg-stone-900 border border-stone-800 rounded-xl pl-12 pr-4 py-4 text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                required
-              />
+            <div className="grid grid-cols-2 gap-2 p-1 bg-stone-900 border border-stone-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setInputMode('url')}
+                className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  inputMode === 'url'
+                    ? 'bg-stone-800 text-white shadow'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                链接
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode('text')}
+                className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  inputMode === 'text'
+                    ? 'bg-stone-800 text-white shadow'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                手动文本
+              </button>
             </div>
+
+            {inputMode === 'url' ? (
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-500">
+                  <Link className="w-5 h-5" />
+                </div>
+                <input
+                  type="url"
+                  value={inputUrl}
+                  onChange={(e) => setInputUrl(e.target.value)}
+                  placeholder="https://example.com/article"
+                  className="w-full bg-stone-900 border border-stone-800 rounded-xl pl-12 pr-4 py-4 text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  required
+                />
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="absolute left-4 top-4 text-stone-500">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="粘贴你的文章内容或草稿..."
+                  className="w-full bg-stone-900 border border-stone-800 rounded-xl pl-12 pr-4 py-4 text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all min-h-[180px] resize-y"
+                  required
+                />
+              </div>
+            )}
 
             {/* 翻译选项 */}
             <label className="flex items-center gap-3 cursor-pointer group">
@@ -247,7 +344,7 @@ export default function App() {
 
             <button
               type="submit"
-              disabled={!inputUrl.trim()}
+              disabled={inputMode === 'url' ? !inputUrl.trim() : !inputText.trim()}
               className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:from-stone-700 disabled:to-stone-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 disabled:shadow-none"
             >
               生成信息图
@@ -257,7 +354,7 @@ export default function App() {
 
           {/* 使用说明 */}
           <div className="mt-10 text-center text-stone-600 text-sm">
-            <p>支持大多数文章页面，系统会自动提取内容并转换为信息图格式</p>
+            <p>支持文章链接和手动文本输入，系统会自动转换为信息图格式</p>
           </div>
         </div>
       </div>
@@ -273,13 +370,16 @@ export default function App() {
           <p className="text-stone-400 text-lg mb-2">
             {taskStatus === 'creating' && '创建任务中...'}
             {taskStatus === 'pending' && '等待处理...'}
-            {taskStatus === 'processing' && '正在爬取和转换文章...'}
+            {taskStatus === 'processing' && (sourceType === 'text' ? '正在转换文本内容...' : '正在爬取和转换文章...')}
           </p>
-          {articleUrl && (
+          {sourceType === 'url' && articleUrl && (
             <p className="text-stone-600 text-sm flex items-center justify-center gap-2 max-w-md mx-auto truncate px-4">
               <ExternalLink className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">{articleUrl}</span>
             </p>
+          )}
+          {sourceType === 'text' && (
+            <p className="text-stone-600 text-sm">手动输入文本</p>
           )}
           <button
             onClick={handleBack}
@@ -308,7 +408,7 @@ export default function App() {
               <X className="w-4 h-4" />
               返回
             </button>
-            {articleUrl && (
+            {sourceType && (
               <button
                 onClick={handleRefresh}
                 className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-xl font-medium transition-colors"
@@ -334,7 +434,7 @@ export default function App() {
         >
           新文章
         </button>
-        {articleUrl && (
+        {sourceType === 'url' && articleUrl && (
           <>
             <a
               href={articleUrl}
@@ -354,6 +454,15 @@ export default function App() {
               <RefreshCw className="w-5 h-5" />
             </button>
           </>
+        )}
+        {sourceType === 'text' && (
+          <button
+            onClick={handleRefresh}
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-2 rounded-xl shadow-lg transition-colors"
+            title="重新生成"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
         )}
       </div>
 

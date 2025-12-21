@@ -14,6 +14,11 @@ class CreateTaskRequest(BaseModel):
     translate_to_chinese: bool = True  # 是否翻译为中文，默认开启
 
 
+class CreateTextTaskRequest(BaseModel):
+    content: str
+    translate_to_chinese: bool = True  # 是否翻译为中文，默认开启
+
+
 class RefreshTaskRequest(BaseModel):
     url: HttpUrl
     translate_to_chinese: bool = True  # 是否翻译为中文，默认开启
