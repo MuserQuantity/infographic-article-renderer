@@ -110,6 +110,15 @@ def init_pocketbase():
                     }
                 },
                 {
+                    "name": "source_type",
+                    "type": "select",
+                    "required": False,
+                    "options": {
+                        "maxSelect": 1,
+                        "values": ["url", "text"]
+                    }
+                },
+                {
                     "name": "result",
                     "type": "json",
                     "required": False,

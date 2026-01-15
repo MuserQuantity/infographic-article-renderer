@@ -3,7 +3,10 @@ from urllib.parse import quote
 from typing import Optional
 from datetime import datetime
 from app.config import get_settings
-from app.models import Task, ArticleData, TaskStatus
+from app.models import Task, ArticleData, TaskStatus, TaskSourceType
+
+MANUAL_URL_PREFIX = "https://manual.local/"
+BILIBILI_VIDEO_PREFIX = "https://www.bilibili.com/video/"
 
 
 def fix_comparison_rows_in_result(data: dict) -> dict:
@@ -135,10 +138,19 @@ class PocketBaseService:
             fixed_result = fix_comparison_rows_in_result(record["result"])
             result_data = ArticleData(**fixed_result)
 
+        source_type = record.get("source_type")
+        if source_type not in ("url", "text"):
+            url = record.get("url", "")
+            if url.startswith(MANUAL_URL_PREFIX) or url.startswith(BILIBILI_VIDEO_PREFIX):
+                source_type = "text"
+            else:
+                source_type = "url"
+
         return Task(
             id=record.get("id"),
             url=record.get("url", ""),
             status=record.get("status", "pending"),
+            source_type=source_type,
             result=result_data,
             error=record.get("error"),
             created_at=datetime.fromisoformat(record["created"].replace("Z", "+00:00")) if record.get("created") else None,
@@ -196,11 +208,12 @@ class PocketBaseService:
         except Exception:
             return [], 0, 0
 
-    async def create_task(self, url: str) -> Task:
+    async def create_task(self, url: str, source_type: TaskSourceType = "url") -> Task:
         """Create a new task."""
         data = {
             "url": url,
             "status": "pending",
+            "source_type": source_type,
             "result": None,
             "error": None
         }
@@ -210,6 +223,11 @@ class PocketBaseService:
         except httpx.HTTPStatusError as e:
             # 如果是 400 错误，可能是 URL 已存在，尝试查询并返回
             if e.response.status_code == 400:
+                error_text = e.response.text or ""
+                if "source_type" in error_text:
+                    fallback_data = {key: value for key, value in data.items() if key != "source_type"}
+                    response = await self._request("POST", self.api_url, json_data=fallback_data)
+                    return self._parse_task(response)
                 existing = await self.get_task_by_url(url)
                 if existing:
                     return existing

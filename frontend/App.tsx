@@ -23,6 +23,7 @@ interface TaskResponse {
   id: string;
   url: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  source_type?: 'url' | 'text';
   result: ArticleData | null;
   error: string | null;
   created_at: string | null;
@@ -92,13 +93,13 @@ export default function App() {
         const task: TaskResponse = await response.json();
         setTaskStatus(task.status);
 
+        const normalizedSourceType = task.source_type || (isManualUrl(task.url) ? 'text' : 'url');
         if (task.url && !isManualUrl(task.url)) {
           setArticleUrl(task.url);
-          setSourceType('url');
         } else {
           setArticleUrl(null);
-          setSourceType('text');
         }
+        setSourceType(normalizedSourceType);
 
         if (task.status === 'completed' && task.result) {
           setArticleData(task.result);
@@ -246,16 +247,19 @@ export default function App() {
       setTaskId(task.id);
       setTaskStatus(task.status);
 
+      const normalizedSourceType = task.source_type || (isManualUrl(task.url) ? 'text' : 'url');
       if (task.url && !isManualUrl(task.url)) {
         setArticleUrl(task.url);
-        setInputUrl(task.url);
-        setInputMode('url');
-        setSourceType('url');
       } else {
         setArticleUrl(null);
-        setInputMode('text');
-        setSourceType('text');
       }
+      if (normalizedSourceType === 'url') {
+        setInputUrl(task.url || '');
+        setInputMode('url');
+      } else {
+        setInputMode('text');
+      }
+      setSourceType(normalizedSourceType);
 
       if (task.status === 'completed' && task.result) {
         setArticleData(task.result);
@@ -561,25 +565,25 @@ export default function App() {
           </button>
         )}
         {articleUrl && (
-          <>
-            <a
-              href={articleUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
-              title="查看原文"
-            >
-              <ExternalLink className="w-4 h-4" />
-              原文
-            </a>
-            <button
-              onClick={handleRefresh}
-              className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-2 rounded-xl shadow-lg transition-colors"
-              title="强制刷新"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-          </>
+          <a
+            href={articleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
+            title="查看原文"
+          >
+            <ExternalLink className="w-4 h-4" />
+            原文
+          </a>
+        )}
+        {sourceType === 'url' && articleUrl && (
+          <button
+            onClick={handleRefresh}
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-2 rounded-xl shadow-lg transition-colors"
+            title="强制刷新"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
         )}
         {sourceType === 'text' && (
           <button

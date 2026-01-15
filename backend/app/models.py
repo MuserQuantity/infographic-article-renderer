@@ -5,6 +5,7 @@ from datetime import datetime
 
 # Task Status
 TaskStatus = Literal["pending", "processing", "completed", "failed"]
+TaskSourceType = Literal["url", "text"]
 
 
 # Request Models
@@ -195,6 +196,7 @@ class Task(BaseModel):
     id: Optional[str] = None
     url: str
     status: TaskStatus = "pending"
+    source_type: TaskSourceType = "url"
     result: Optional[ArticleData] = None
     error: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -206,6 +208,7 @@ class TaskResponse(BaseModel):
     id: str
     url: str
     status: TaskStatus
+    source_type: TaskSourceType = "url"
     result: Optional[ArticleData] = None
     error: Optional[str] = None
     created_at: Optional[str] = None
@@ -216,6 +219,7 @@ class TaskListItem(BaseModel):
     id: str
     url: str
     status: TaskStatus
+    source_type: TaskSourceType = "url"
     title: Optional[str] = None
     subtitle: Optional[str] = None
     meta: Optional[ArticleMeta] = None

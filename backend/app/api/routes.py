@@ -31,6 +31,7 @@ def task_to_response(task: Task) -> TaskResponse:
         id=task.id,
         url=task.url,
         status=task.status,
+        source_type=task.source_type,
         result=task.result,
         error=task.error,
         created_at=task.created_at.isoformat() if task.created_at else None,
@@ -43,6 +44,7 @@ def task_to_list_item(task: Task) -> TaskListItem:
         id=task.id,
         url=task.url,
         status=task.status,
+        source_type=task.source_type,
         title=task.result.title if task.result else None,
         subtitle=task.result.subtitle if task.result else None,
         meta=task.result.meta if task.result else None,
@@ -61,7 +63,7 @@ async def create_and_start_task(
     if delete_existing and existing_task:
         await db_service.delete_task(existing_task.id)
 
-    task = await db_service.create_task(url)
+    task = await db_service.create_task(url, source_type="url")
     background_tasks.add_task(process_task, task.id, url, translate_to_chinese)
     return task_to_response(task)
 
@@ -73,7 +75,7 @@ async def create_and_start_text_task(
     source_url: str | None = None
 ) -> TaskResponse:
     task_url = source_url or build_manual_url()
-    task = await db_service.create_task(task_url)
+    task = await db_service.create_task(task_url, source_type="text")
     background_tasks.add_task(process_text_task, task.id, text, translate_to_chinese)
     return task_to_response(task)
 

@@ -22,6 +22,15 @@
         }
       },
       {
+        "name": "source_type",
+        "type": "select",
+        "required": false,
+        "options": {
+          "maxSelect": 1,
+          "values": ["url", "text"]
+        }
+      },
+      {
         "name": "result",
         "type": "json",
         "required": false,
