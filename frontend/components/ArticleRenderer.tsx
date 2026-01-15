@@ -47,6 +47,50 @@ import {
 
 // --- Sub-Components ---
 
+const parseInlineMarkdown = (
+  str: string,
+  onAnalyzeLink?: (url: string) => void
+): React.ReactNode[] => {
+  if (typeof str !== 'string') {
+    return [String(str ?? '')];
+  }
+
+  const combinedRegex = /(\*\*.*?\*\*|\[([^\]]+)\]\(([^)]+)\))/g;
+  const result: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let keyIndex = 0;
+
+  while ((match = combinedRegex.exec(str)) !== null) {
+    if (match.index > lastIndex) {
+      result.push(str.slice(lastIndex, match.index));
+    }
+
+    const fullMatch = match[0];
+    if (fullMatch.startsWith('**') && fullMatch.endsWith('**')) {
+      result.push(
+        <strong key={keyIndex++} className="font-bold text-stone-900 bg-amber-100/60 px-1 rounded-sm">
+          {fullMatch.slice(2, -2)}
+        </strong>
+      );
+    } else if (match[2] && match[3]) {
+      result.push(
+        <SmartLink key={keyIndex++} href={match[3]} onAnalyze={onAnalyzeLink}>
+          {match[2]}
+        </SmartLink>
+      );
+    }
+
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  if (lastIndex < str.length) {
+    result.push(str.slice(lastIndex));
+  }
+
+  return result.length > 0 ? result : [str];
+};
+
 // 智能链接组件 - 悬停显示菜单
 const SmartLink = ({ href, children, onAnalyze }: { href: string; children: React.ReactNode; onAnalyze?: (url: string) => void }) => {
   const [showMenu, setShowMenu] = React.useState(false);
@@ -119,62 +163,13 @@ const SmartLink = ({ href, children, onAnalyze }: { href: string; children: Reac
   );
 };
 
-const ParagraphBlock = ({ text, onAnalyzeLink }: { text: string; onAnalyzeLink?: (url: string) => void }) => {
-  const parseMarkdown = (str: string): React.ReactNode[] => {
-    // 确保 str 是字符串
-    if (typeof str !== 'string') {
-      return [String(str ?? '')];
-    }
+const ParagraphBlock = ({ text, onAnalyzeLink }: { text: string; onAnalyzeLink?: (url: string) => void }) => (
+  <p className="text-stone-800 leading-8 md:leading-9 mb-8 text-base md:text-lg tracking-normal text-left font-normal antialiased">
+    {parseInlineMarkdown(text, onAnalyzeLink)}
+  </p>
+);
 
-    // 匹配粗体 **text** 和链接 [text](url)
-    const combinedRegex = /(\*\*.*?\*\*|\[([^\]]+)\]\(([^)]+)\))/g;
-    const result: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match;
-    let keyIndex = 0;
-
-    while ((match = combinedRegex.exec(str)) !== null) {
-      // 添加匹配前的普通文本
-      if (match.index > lastIndex) {
-        result.push(str.slice(lastIndex, match.index));
-      }
-
-      const fullMatch = match[0];
-      if (fullMatch.startsWith('**') && fullMatch.endsWith('**')) {
-        // 粗体
-        result.push(
-          <strong key={keyIndex++} className="font-bold text-stone-900 bg-amber-100/60 px-1 rounded-sm">
-            {fullMatch.slice(2, -2)}
-          </strong>
-        );
-      } else if (match[2] && match[3]) {
-        // 链接 [text](url) - 使用智能链接组件
-        result.push(
-          <SmartLink key={keyIndex++} href={match[3]} onAnalyze={onAnalyzeLink}>
-            {match[2]}
-          </SmartLink>
-        );
-      }
-
-      lastIndex = match.index + fullMatch.length;
-    }
-
-    // 添加剩余的文本
-    if (lastIndex < str.length) {
-      result.push(str.slice(lastIndex));
-    }
-
-    return result.length > 0 ? result : [str];
-  };
-
-  return (
-    <p className="text-stone-800 leading-8 md:leading-9 mb-8 text-base md:text-lg tracking-normal text-left font-normal antialiased">
-      {parseMarkdown(text)}
-    </p>
-  );
-};
-
-const QuoteBlock = ({ text, author }: { text: string; author?: string }) => {
+const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: string; onAnalyzeLink?: (url: string) => void }) => {
   // 清理 markdown 引用语法 (> 开头的行)
   const safeText = typeof text === 'string' ? text : String(text ?? '');
   const cleanText = safeText
@@ -187,7 +182,7 @@ const QuoteBlock = ({ text, author }: { text: string; author?: string }) => {
     <div className="relative mb-12 mt-10">
       <div className="border-l-2 border-amber-500 pl-8 py-2 pr-4">
         <p className="text-xl md:text-3xl font-serif text-stone-900 mb-6 leading-relaxed italic">
-          "{cleanText}"
+          "{parseInlineMarkdown(cleanText, onAnalyzeLink)}"
         </p>
       {author && (
         <div className="flex items-center justify-end gap-4">
@@ -245,7 +240,17 @@ const extractItemText = (item: unknown): string => {
   return String(item ?? '');
 };
 
-const ListBlock = ({ items, title, style = 'bullet' }: { items: string[]; title?: string; style?: 'bullet' | 'check' | 'number' }) => (
+const ListBlock = ({
+  items,
+  title,
+  style = 'bullet',
+  onAnalyzeLink,
+}: {
+  items: string[];
+  title?: string;
+  style?: 'bullet' | 'check' | 'number';
+  onAnalyzeLink?: (url: string) => void;
+}) => (
   <div className="mb-10 pl-2">
     {title && <h4 className="font-bold text-stone-900 mb-6 text-base md:text-lg flex items-center gap-2 border-b border-stone-100 pb-2">
       {title}
@@ -253,11 +258,7 @@ const ListBlock = ({ items, title, style = 'bullet' }: { items: string[]; title?
     <ul className="space-y-4">
       {items.map((item, idx) => {
         const safeItem = extractItemText(item);
-        const content = safeItem.split(/(\*\*.*?\*\*)/g).map((part, i) =>
-          part.startsWith('**') && part.endsWith('**')
-            ? <span key={i} className="font-bold text-stone-900">{part.slice(2, -2)}</span>
-            : part
-        );
+        const content = parseInlineMarkdown(safeItem, onAnalyzeLink);
 
         return (
           <li key={idx} className="flex gap-4 items-start group">
@@ -897,11 +898,11 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
     case 'paragraph':
       return <ParagraphBlock text={block.text} onAnalyzeLink={onAnalyzeLink} />;
     case 'quote':
-      return <QuoteBlock text={block.text} author={block.author} />;
+      return <QuoteBlock text={block.text} author={block.author} onAnalyzeLink={onAnalyzeLink} />;
     case 'callout':
       return <CalloutBlock text={block.text} title={block.title} variant={block.variant} />;
     case 'list':
-      return <ListBlock items={block.items} title={block.title} style={block.style} />;
+      return <ListBlock items={block.items} title={block.title} style={block.style} onAnalyzeLink={onAnalyzeLink} />;
     case 'grid':
       return <GridBlock items={block.items} columns={block.columns} />;
     case 'image':
