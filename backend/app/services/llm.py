@@ -74,7 +74,7 @@ def extract_json_from_response(content: str) -> str:
     logger.warning("Could not find complete JSON object, returning from first '{'")
     return content[json_start:]
 
-SYSTEM_PROMPT = """你是一个专业的内容结构化助手。你的任务是将文章内容转换为结构化的 JSON 格式。不要输出思维链过程。"""
+SYSTEM_PROMPT = """你是一个专业的内容结构化助手。将输入文章转换为结构化 JSON。只输出 JSON，不要输出思维链、解释或任何多余文字。输出必须以 { 开始，以 } 结束。"""
 
 USER_PROMPT_TEMPLATE = """请将以下文章内容转换为结构化 JSON 格式，用于信息图文章渲染器。
 
@@ -99,7 +99,7 @@ interface ArticleSection {{
 
 // 【重要】每个 ContentBlock 必须包含 "type" 字段！
 type ContentBlock =
-  | {{ type: "paragraph"; text: string }}  // 段落，支持 **粗体** 语法
+  | {{ type: "paragraph"; text: string }}  // 段落，文本中允许 **粗体** 和 [文本](url)
   | {{ type: "quote"; text: string; author?: string }}  // 引用
   | {{ type: "callout"; text: string; title?: string; variant?: "info" | "warning" | "success" }}  // 提示框
   | {{ type: "list"; items: string[]; title?: string; style?: "bullet" | "check" | "number" }}  // 列表
@@ -145,7 +145,7 @@ comparison 的 rows 必须是对象数组，每个对象包含 label 和 values 
 ]}}
 
 ContentBlock 示例：
-- 段落: {{"type": "paragraph", "text": "这是一段文字"}}
+- 段落: {{"type": "paragraph", "text": "这是一段 **重点** 内容"}}
 - 列表: {{"type": "list", "items": ["项目1", "项目2"], "style": "bullet"}}
 - 对比表: {{"type": "comparison", "columns": ["方案A", "方案B"], "rows": [{{"label": "价格", "values": ["免费", "付费"]}}]}}
 - 表格: {{"type": "table", "headers": ["列1", "列2"], "rows": [["数据1", "数据2"]]}}
@@ -159,22 +159,24 @@ ContentBlock 示例：
 - 链接卡片: {{"type": "linkcard", "url": "https://example.com", "title": "链接标题", "description": "描述"}}
 - 评分: {{"type": "rating", "items": [{{"label": "评分项", "score": 4.5, "maxScore": 5}}]}}
 
-转换规则：
+内容结构与排版规则：
 1. 提取文章标题作为 title，副标题作为 subtitle
-2. 尽量提取作者、日期信息到 meta
+2. 尽量提取作者、日期信息到 meta；不要编造，缺失则省略
 3. 根据内容逻辑划分为多个 sections，每个大的主题或章节应该是一个独立的 section
-4. 根据内容特点选择合适的 ContentBlock 类型
-5. 【极其重要】JSON 文本中绝对不要包含 markdown 语法：
-   - 不要出现 "#"、"##"、"###"、"####" 等标题语法
-   - 不要出现 ">"、"-"、"*" 等列表或引用语法
-   - 如果原文有子标题（如 "3.2 深圳：xxx"），应该创建新的 section 或使用 highlight block，而不是放在 paragraph 中
-   - 如果有编号列表内容，使用 list block 的 "number" style
-6. 过滤掉广告、订阅提示、社交媒体引导等非正文内容
-7. 子标题处理：如果文章中有类似 "3.1 xxx"、"第一部分：xxx" 这样的子标题，应该作为新 section 的 title，或者用 highlight block 突出显示
+4. 每个 section 建议 2-5 个内容块；段落 1-3 句；列表 3-6 项；时间线 3-6 项；统计/评分 2-4 项
+5. 根据内容特点选择合适的 ContentBlock 类型；不确定时使用 paragraph
+6. 允许少量行内 Markdown（仅限文本字段）：**粗体**、[文本](https://example.com)
+7. 禁止任何其他 Markdown 语法或代码块：
+   - 不要出现 "#"、"##"、"###" 等标题语法
+   - 不要出现以 "-"、"*"、">" 开头的列表或引用语法
+   - 不要出现 "```" 代码块标记
+8. 过滤掉广告、订阅提示、社交媒体引导等非正文内容
+9. 子标题处理：如果文章中有类似 "3.1 xxx"、"第一部分：xxx" 这样的子标题，应该作为新 section 的 title，或者用 highlight block 突出显示
+10. 如果内容包含 URL，优先使用 linkcard，或在文本中使用 [文本](url)
 
 {language_instruction}
 
-请直接输出 JSON，不要包含 markdown 代码块标记。
+请直接输出 JSON，不要包含 Markdown 代码块标记，不要输出任何解释或多余文本。
 
 ---
 文章内容：
@@ -243,7 +245,7 @@ def fix_comparison_rows(data: dict) -> dict:
                 if isinstance(first_row, list) and len(first_row) >= 2:
                     # 如果有 headers，说明这确实是 table，rows 格式是对的（string[][]）
                     if "headers" in block and block["headers"]:
-                        logger.debug(f"  Table block has headers, keeping as table")
+                        logger.debug("  Table block has headers, keeping as table")
                     else:
                         # 没有 headers，可能是 LLM 把 comparison 错误地标记为 table
                         logger.info(f"  Converting table to comparison in section[{section_idx}].content[{block_idx}]")
@@ -269,6 +271,324 @@ def fix_comparison_rows(data: dict) -> dict:
     else:
         logger.debug("No comparison rows needed fixing")
 
+    return data
+
+
+def normalize_blocks(data: dict) -> dict:
+    if "sections" not in data:
+        return data
+
+    normalized_sections = []
+    for section in data["sections"]:
+        title = str(section.get("title", "")).strip() or "未命名章节"
+        content = section.get("content") or []
+        if not isinstance(content, list):
+            content = [content]
+
+        normalized_content = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            block_type = block.get("type")
+            if not block_type or not isinstance(block_type, str):
+                continue
+
+            normalized_block = dict(block)
+            normalized_block["type"] = block_type
+
+            if block_type == "paragraph":
+                text = str(normalized_block.get("text", "")).strip()
+                if not text:
+                    continue
+                normalized_block["text"] = text
+            elif block_type == "list":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = [str(item).strip() for item in items if str(item).strip()]
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            elif block_type == "quote":
+                text = str(normalized_block.get("text", "")).strip()
+                if not text:
+                    continue
+                normalized_block["text"] = text
+                author = normalized_block.get("author")
+                if author is not None:
+                    normalized_block["author"] = str(author).strip()
+            elif block_type == "callout":
+                text = str(normalized_block.get("text", "")).strip()
+                if not text:
+                    continue
+                normalized_block["text"] = text
+                title_value = normalized_block.get("title")
+                if title_value is not None:
+                    normalized_block["title"] = str(title_value).strip()
+            elif block_type == "grid":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for item in items:
+                    if isinstance(item, dict):
+                        title_value = str(item.get("title", "")).strip()
+                        description_value = str(item.get("description", "")).strip()
+                        if title_value and description_value:
+                            normalized_items.append({"title": title_value, "description": description_value})
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+                columns = normalized_block.get("columns")
+                if columns not in (1, 2, 3):
+                    normalized_block["columns"] = 2
+            elif block_type == "image":
+                src = str(normalized_block.get("src", "")).strip()
+                alt = str(normalized_block.get("alt", "")).strip()
+                if not src or not alt:
+                    continue
+                normalized_block["src"] = src
+                normalized_block["alt"] = alt
+                caption = normalized_block.get("caption")
+                if caption is not None:
+                    normalized_block["caption"] = str(caption).strip()
+            elif block_type == "stat":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for item in items:
+                    if isinstance(item, dict):
+                        label = str(item.get("label", "")).strip()
+                        value = str(item.get("value", "")).strip()
+                        if label and value:
+                            normalized_items.append({
+                                "label": label,
+                                "value": value,
+                                "trend": item.get("trend"),
+                                "note": str(item.get("note", "")).strip() if item.get("note") is not None else None
+                            })
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+                columns = normalized_block.get("columns")
+                if columns not in (1, 2, 3):
+                    normalized_block["columns"] = 3
+            elif block_type == "tags":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = [str(item).strip() for item in items if str(item).strip()]
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            elif block_type == "timeline":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for item in items:
+                    if isinstance(item, dict):
+                        title_value = str(item.get("title", "")).strip()
+                        if title_value:
+                            normalized_items.append({
+                                "title": title_value,
+                                "time": str(item.get("time", "")).strip() if item.get("time") is not None else None,
+                                "desc": str(item.get("desc", "")).strip() if item.get("desc") is not None else None
+                            })
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            elif block_type == "comparison":
+                columns = normalized_block.get("columns") or []
+                if not isinstance(columns, list):
+                    columns = [columns]
+                normalized_columns = [str(col).strip() for col in columns if str(col).strip()]
+                rows = normalized_block.get("rows") or []
+                if not isinstance(rows, list):
+                    rows = [rows]
+                normalized_rows = []
+                for row in rows:
+                    if isinstance(row, dict):
+                        label = str(row.get("label", "")).strip()
+                        values = row.get("values") or []
+                        if not isinstance(values, list):
+                            values = [values]
+                        normalized_values = [str(value).strip() for value in values if str(value).strip()]
+                        if label:
+                            normalized_rows.append({"label": label, "values": normalized_values})
+                if not normalized_rows:
+                    continue
+                normalized_block["columns"] = normalized_columns
+                normalized_block["rows"] = normalized_rows
+            elif block_type == "table":
+                headers = normalized_block.get("headers") or []
+                if not isinstance(headers, list):
+                    headers = [headers]
+                normalized_headers = [str(header).strip() for header in headers if str(header).strip()]
+                rows = normalized_block.get("rows") or []
+                if not isinstance(rows, list):
+                    rows = [rows]
+                normalized_rows = []
+                for row in rows:
+                    if isinstance(row, list):
+                        normalized_row = [str(cell).strip() for cell in row]
+                        normalized_rows.append(normalized_row)
+                if not normalized_rows:
+                    continue
+                normalized_block["headers"] = normalized_headers
+                normalized_block["rows"] = normalized_rows
+            elif block_type == "code":
+                code = str(normalized_block.get("code", "")).strip()
+                if not code:
+                    continue
+                normalized_block["code"] = code
+                language = normalized_block.get("language")
+                if language is not None:
+                    normalized_block["language"] = str(language).strip()
+                title_value = normalized_block.get("title")
+                if title_value is not None:
+                    normalized_block["title"] = str(title_value).strip()
+            elif block_type == "accordion":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for item in items:
+                    if isinstance(item, dict):
+                        question = str(item.get("question", "")).strip()
+                        answer = str(item.get("answer", "")).strip()
+                        if question and answer:
+                            normalized_items.append({"question": question, "answer": answer})
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            elif block_type == "steps":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for index, item in enumerate(items, start=1):
+                    if isinstance(item, dict):
+                        title_value = str(item.get("title", "")).strip()
+                        description_value = str(item.get("description", "")).strip()
+                        if title_value and description_value:
+                            step_value = item.get("step")
+                            if not isinstance(step_value, int):
+                                step_value = index
+                            normalized_items.append({
+                                "step": step_value,
+                                "title": title_value,
+                                "description": description_value
+                            })
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            elif block_type == "progress":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for item in items:
+                    if isinstance(item, dict):
+                        label = str(item.get("label", "")).strip()
+                        value = item.get("value")
+                        max_value = item.get("max") if item.get("max") is not None else 100
+                        if label and isinstance(value, (int, float)):
+                            normalized_items.append({
+                                "label": label,
+                                "value": int(value),
+                                "max": int(max_value) if isinstance(max_value, (int, float)) else 100
+                            })
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            elif block_type == "highlight":
+                text = str(normalized_block.get("text", "")).strip()
+                if not text:
+                    continue
+                normalized_block["text"] = text
+            elif block_type == "definition":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for item in items:
+                    if isinstance(item, dict):
+                        term = str(item.get("term", "")).strip()
+                        definition = str(item.get("definition", "")).strip()
+                        if term and definition:
+                            normalized_items.append({"term": term, "definition": definition})
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            elif block_type == "proscons":
+                pros = normalized_block.get("pros") or []
+                cons = normalized_block.get("cons") or []
+                if not isinstance(pros, list):
+                    pros = [pros]
+                if not isinstance(cons, list):
+                    cons = [cons]
+                normalized_pros = [str(item).strip() for item in pros if str(item).strip()]
+                normalized_cons = [str(item).strip() for item in cons if str(item).strip()]
+                if not normalized_pros and not normalized_cons:
+                    continue
+                normalized_block["pros"] = normalized_pros
+                normalized_block["cons"] = normalized_cons
+            elif block_type == "video":
+                src = str(normalized_block.get("src", "")).strip()
+                if not src:
+                    continue
+                normalized_block["src"] = src
+                platform = normalized_block.get("platform")
+                if platform is not None:
+                    normalized_block["platform"] = str(platform).strip()
+                title_value = normalized_block.get("title")
+                if title_value is not None:
+                    normalized_block["title"] = str(title_value).strip()
+            elif block_type == "divider":
+                normalized_block["dividerStyle"] = normalized_block.get("dividerStyle")
+            elif block_type == "linkcard":
+                url = str(normalized_block.get("url", "")).strip()
+                title_value = str(normalized_block.get("title", "")).strip()
+                if not url or not title_value:
+                    continue
+                normalized_block["url"] = url
+                normalized_block["title"] = title_value
+                description_value = normalized_block.get("description")
+                if description_value is not None:
+                    normalized_block["description"] = str(description_value).strip()
+                image_value = normalized_block.get("image")
+                if image_value is not None:
+                    normalized_block["image"] = str(image_value).strip()
+            elif block_type == "rating":
+                items = normalized_block.get("items") or []
+                if not isinstance(items, list):
+                    items = [items]
+                normalized_items = []
+                for item in items:
+                    if isinstance(item, dict):
+                        label = str(item.get("label", "")).strip()
+                        score = item.get("score")
+                        max_score = item.get("maxScore") if item.get("maxScore") is not None else 5
+                        if label and isinstance(score, (int, float)):
+                            normalized_items.append({
+                                "label": label,
+                                "score": float(score),
+                                "maxScore": float(max_score) if isinstance(max_score, (int, float)) else 5
+                            })
+                if not normalized_items:
+                    continue
+                normalized_block["items"] = normalized_items
+            else:
+                continue
+
+            normalized_content.append(normalized_block)
+
+        if normalized_content:
+            normalized_sections.append({"title": title, "content": normalized_content})
+
+    data["sections"] = normalized_sections
     return data
 
 
@@ -385,6 +705,9 @@ class LLMService:
             # 修正 comparison rows 格式错误
             logger.info("Running fix_comparison_rows...")
             data = fix_comparison_rows(data)
+
+            logger.info("Normalizing blocks...")
+            data = normalize_blocks(data)
 
             logger.info("Validating with Pydantic ArticleData model...")
             result = ArticleData(**data)

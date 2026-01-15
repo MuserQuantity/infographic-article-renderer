@@ -168,7 +168,7 @@ const ParagraphBlock = ({ text, onAnalyzeLink }: { text: string; onAnalyzeLink?:
   };
 
   return (
-    <p className="text-stone-700 leading-7 md:leading-8 mb-6 text-base md:text-lg tracking-wide text-justify font-normal">
+    <p className="text-stone-800 leading-8 md:leading-9 mb-8 text-base md:text-lg tracking-normal text-left font-normal antialiased">
       {parseMarkdown(text)}
     </p>
   );
@@ -185,8 +185,8 @@ const QuoteBlock = ({ text, author }: { text: string; author?: string }) => {
 
   return (
     <div className="relative mb-12 mt-10">
-      <div className="border-l-4 border-amber-500 pl-8 py-4 pr-2">
-        <p className="text-xl md:text-2xl font-serif text-stone-800 mb-6 leading-relaxed italic">
+      <div className="border-l-2 border-amber-500 pl-8 py-2 pr-4">
+        <p className="text-xl md:text-3xl font-serif text-stone-900 mb-6 leading-relaxed italic">
           "{cleanText}"
         </p>
       {author && (
@@ -288,7 +288,7 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
   return (
     <div className={`grid ${gridCols[columns]} gap-6 mb-12`}>
       {items.map((item, idx) => (
-        <div key={idx} className="bg-stone-50 p-8 rounded-2xl transition-all duration-300 hover:bg-white hover:shadow-xl hover:shadow-stone-200/50 group border border-transparent hover:border-stone-100">
+        <div key={idx} className="bg-white p-8 rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-stone-200/40 group border border-stone-100 hover:border-stone-200 hover:-translate-y-1">
           <div className="w-12 h-12 rounded-xl bg-white text-stone-800 flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
              <LayoutGrid className="w-6 h-6" />
           </div>
@@ -947,8 +947,8 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
 
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
   <div className="mb-16 md:mb-20 last:mb-0 relative">
-    <div className="flex items-baseline gap-3 md:gap-4 mb-8 md:mb-10 border-b-2 border-black pb-4">
-      <div className="text-3xl md:text-4xl font-serif font-black text-stone-200 opacity-50">
+    <div className="flex items-baseline gap-4 md:gap-8 mb-12 md:mb-16 border-b border-stone-200 pb-6">
+      <div className="text-4xl md:text-5xl font-serif font-black text-stone-100 select-none">
         {String(index + 1).padStart(2, '0')}
       </div>
       <h2 className="text-2xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight flex-1">
@@ -972,9 +972,9 @@ interface ArticleRendererProps {
 
 export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyzeLink }) => {
   return (
-    <div className="max-w-5xl mx-auto bg-white min-h-[1000px] shadow-2xl shadow-stone-900/10 overflow-hidden rounded-none md:rounded-2xl ring-1 ring-slate-900/5 transition-all">
+    <div className="max-w-4xl mx-auto bg-white min-h-screen shadow-xl shadow-stone-900/5 overflow-hidden rounded-none md:rounded-3xl ring-1 ring-stone-900/5 transition-all">
       {/* Header */}
-      <header className="bg-stone-900 text-white p-8 md:p-24 relative overflow-hidden">
+      <header className="bg-stone-950 text-white px-8 py-16 md:px-24 md:py-32 relative overflow-hidden">
         {/* Subtle noise texture or pattern could go here */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
 
@@ -1017,7 +1017,7 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
       </header>
 
       {/* Content Body */}
-      <main className="p-6 md:p-20 bg-white">
+      <main className="px-6 py-12 md:px-20 md:py-24 bg-white">
         {data.sections.map((section, idx) => (
           <SectionRenderer key={idx} section={section} index={idx} onAnalyzeLink={onAnalyzeLink} />
         ))}
