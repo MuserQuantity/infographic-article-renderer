@@ -286,6 +286,13 @@ class LLMService:
         self.retry_base_delay = max(0.1, settings.llm_retry_base_delay)
         self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
         self.use_response_format = settings.llm_use_response_format
+        self.request_timeout_seconds = max(1.0, settings.llm_timeout_seconds)
+        self.total_timeout_seconds = self._calculate_total_timeout()
+
+    def _calculate_total_timeout(self) -> float:
+        attempts = max(1, self.max_retries + 1)
+        retry_delay_total = self.retry_max_delay * max(0, attempts - 1)
+        return self.request_timeout_seconds * attempts + retry_delay_total + 5.0
 
     async def _create_chat_completion(self, **kwargs):
         attempts = max(1, self.max_retries + 1)
@@ -347,9 +354,18 @@ class LLMService:
         if self.use_response_format:
             request_kwargs["response_format"] = {"type": "json_object"}
 
-        response = await self._create_chat_completion(
-            **request_kwargs
-        )
+        try:
+            response = await asyncio.wait_for(
+                self._create_chat_completion(**request_kwargs),
+                timeout=self.total_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "LLM request timed out after %.1fs (content_length=%s)",
+                self.total_timeout_seconds,
+                len(markdown_content)
+            )
+            raise Exception(f"LLM request timed out after {self.total_timeout_seconds:.1f}s")
 
         content = response.choices[0].message.content
         if not content:
@@ -388,6 +404,10 @@ class LLMService:
         error_mappings = {
             "Timeout": "页面加载超时，请稍后重试或检查网址是否正确",
             "timeout": "页面加载超时，请稍后重试或检查网址是否正确",
+            "LLM request timed out": "AI 处理超时，请稍后重试",
+            "maximum context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
+            "context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
+            "Request too large": "内容过长，超出模型可处理范围，请缩短文本后重试",
             "networkidle": "页面加载超时，该网站可能加载较慢，请稍后重试",
             "Failed on navigating": "无法访问该网页，请检查网址是否正确或网站是否可访问",
             "Crawl failed": "网页抓取失败，请检查网址是否有效",
