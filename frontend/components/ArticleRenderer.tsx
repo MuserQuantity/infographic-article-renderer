@@ -197,7 +197,17 @@ const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: st
   );
 };
 
-const CalloutBlock = ({ text, title, variant = 'info' }: { text: string; title?: string; variant?: 'info' | 'warning' | 'success' }) => {
+const CalloutBlock = ({
+  text,
+  title,
+  variant = 'info',
+  onAnalyzeLink,
+}: {
+  text: string;
+  title?: string;
+  variant?: 'info' | 'warning' | 'success';
+  onAnalyzeLink?: (url: string) => void;
+}) => {
   const styles = {
     info: 'bg-sky-50 border-sky-100 text-sky-900',
     warning: 'bg-amber-50 border-amber-100 text-amber-900',
@@ -216,7 +226,7 @@ const CalloutBlock = ({ text, title, variant = 'info' }: { text: string; title?:
       <Icon className={`w-6 h-6 flex-shrink-0 mt-0.5 ${iconColors[variant]}`} />
       <div className="flex-1">
         {title && <h4 className="font-bold mb-1 text-base md:text-lg">{title}</h4>}
-        <p className="opacity-90 leading-relaxed text-sm md:text-base">{text}</p>
+        <p className="opacity-90 leading-relaxed text-sm md:text-base">{parseInlineMarkdown(text, onAnalyzeLink)}</p>
       </div>
     </div>
   );
@@ -694,7 +704,15 @@ const ProgressBlock = ({ items }: { items: ProgressItem[] }) => (
   </div>
 );
 
-const HighlightBlock = ({ text, color = 'yellow' }: { text: string; color?: 'yellow' | 'blue' | 'green' | 'pink' }) => {
+const HighlightBlock = ({
+  text,
+  color = 'yellow',
+  onAnalyzeLink,
+}: {
+  text: string;
+  color?: 'yellow' | 'blue' | 'green' | 'pink';
+  onAnalyzeLink?: (url: string) => void;
+}) => {
   const colorStyles = {
     yellow: 'bg-amber-50 border-amber-200 text-amber-900',
     blue: 'bg-sky-50 border-sky-200 text-sky-900',
@@ -712,26 +730,34 @@ const HighlightBlock = ({ text, color = 'yellow' }: { text: string; color?: 'yel
   return (
     <div className={`mb-10 px-6 py-5 rounded-xl border-2 border-dashed ${colorStyles[color]} flex items-start gap-4`}>
       <Highlighter className={`w-5 h-5 flex-shrink-0 mt-0.5 ${iconColors[color]}`} />
-      <p className="text-base md:text-lg font-medium leading-relaxed">{text}</p>
+      <p className="text-base md:text-lg font-medium leading-relaxed">{parseInlineMarkdown(text, onAnalyzeLink)}</p>
     </div>
   );
 };
 
-const DefinitionBlock = ({ items }: { items: DefinitionItem[] }) => (
+const DefinitionBlock = ({ items, onAnalyzeLink }: { items: DefinitionItem[]; onAnalyzeLink?: (url: string) => void }) => (
   <div className="mb-12 space-y-4">
     {items.map((item, idx) => (
       <div key={idx} className="bg-stone-50 rounded-xl p-6 border-l-4 border-stone-400">
         <div className="flex items-center gap-2 mb-2">
           <BookOpen className="w-4 h-4 text-stone-500" />
-          <dt className="font-bold text-stone-900 text-base md:text-lg">{item.term}</dt>
+          <dt className="font-bold text-stone-900 text-base md:text-lg">{parseInlineMarkdown(item.term, onAnalyzeLink)}</dt>
         </div>
-        <dd className="text-stone-600 leading-relaxed text-sm md:text-base pl-6">{item.definition}</dd>
+        <dd className="text-stone-600 leading-relaxed text-sm md:text-base pl-6">{parseInlineMarkdown(item.definition, onAnalyzeLink)}</dd>
       </div>
     ))}
   </div>
 );
 
-const ProsConsBlock = ({ pros, cons }: { pros: string[]; cons: string[] }) => (
+const ProsConsBlock = ({
+  pros,
+  cons,
+  onAnalyzeLink,
+}: {
+  pros: string[];
+  cons: string[];
+  onAnalyzeLink?: (url: string) => void;
+}) => (
   <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
     <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-200">
@@ -742,7 +768,7 @@ const ProsConsBlock = ({ pros, cons }: { pros: string[]; cons: string[] }) => (
         {pros.map((item, idx) => (
           <li key={idx} className="flex items-start gap-3">
             <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-1 flex-shrink-0" />
-            <span className="text-emerald-800 text-sm md:text-base leading-relaxed">{item}</span>
+            <span className="text-emerald-800 text-sm md:text-base leading-relaxed">{parseInlineMarkdown(item, onAnalyzeLink)}</span>
           </li>
         ))}
       </ul>
@@ -756,7 +782,7 @@ const ProsConsBlock = ({ pros, cons }: { pros: string[]; cons: string[] }) => (
         {cons.map((item, idx) => (
           <li key={idx} className="flex items-start gap-3">
             <Minus className="w-4 h-4 text-rose-500 mt-1 flex-shrink-0" />
-            <span className="text-rose-800 text-sm md:text-base leading-relaxed">{item}</span>
+            <span className="text-rose-800 text-sm md:text-base leading-relaxed">{parseInlineMarkdown(item, onAnalyzeLink)}</span>
           </li>
         ))}
       </ul>
@@ -900,7 +926,7 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
     case 'quote':
       return <QuoteBlock text={block.text} author={block.author} onAnalyzeLink={onAnalyzeLink} />;
     case 'callout':
-      return <CalloutBlock text={block.text} title={block.title} variant={block.variant} />;
+      return <CalloutBlock text={block.text} title={block.title} variant={block.variant} onAnalyzeLink={onAnalyzeLink} />;
     case 'list':
       return <ListBlock items={block.items} title={block.title} style={block.style} onAnalyzeLink={onAnalyzeLink} />;
     case 'grid':
@@ -926,11 +952,11 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
     case 'progress':
       return <ProgressBlock items={block.items} />;
     case 'highlight':
-      return <HighlightBlock text={block.text} color={block.color} />;
+      return <HighlightBlock text={block.text} color={block.color} onAnalyzeLink={onAnalyzeLink} />;
     case 'definition':
-      return <DefinitionBlock items={block.items} />;
+      return <DefinitionBlock items={block.items} onAnalyzeLink={onAnalyzeLink} />;
     case 'proscons':
-      return <ProsConsBlock pros={block.pros} cons={block.cons} />;
+      return <ProsConsBlock pros={block.pros} cons={block.cons} onAnalyzeLink={onAnalyzeLink} />;
     case 'video':
       return <VideoBlock src={block.src} platform={block.platform} title={block.title} />;
     case 'divider':
