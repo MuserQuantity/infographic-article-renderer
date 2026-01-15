@@ -433,10 +433,44 @@ const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?
   </div>
 );
 
+const comparisonLabelHeaders = new Set([
+  '指标',
+  '对比项',
+  '对比维度',
+  '维度',
+  '项目',
+  '参数',
+  'metric',
+  'metrics',
+  'feature',
+  'features',
+  'criteria',
+  'criterion',
+  'item',
+  'items',
+  'parameter',
+  'parameters',
+  'dimension',
+  'dimensions',
+]);
+
 const normalizeComparison = (columns: string[], rows: ComparisonRow[]) => {
   const maxValues = rows.reduce((max, row) => Math.max(max, row.values.length), 0);
-  const columnCount = Math.max(columns.length, maxValues);
-  const normalizedColumns = columns.slice(0, columnCount);
+  let labelHeader = '对比项';
+  let effectiveColumns = columns;
+
+  const firstColumn = columns[0]?.trim() ?? '';
+  const hasLabelHeader =
+    columns.length === maxValues + 1 &&
+    comparisonLabelHeaders.has(firstColumn.toLowerCase());
+
+  if (hasLabelHeader) {
+    labelHeader = firstColumn || labelHeader;
+    effectiveColumns = columns.slice(1);
+  }
+
+  const columnCount = Math.max(effectiveColumns.length, maxValues);
+  const normalizedColumns = effectiveColumns.slice(0, columnCount);
   while (normalizedColumns.length < columnCount) {
     normalizedColumns.push('');
   }
@@ -447,19 +481,19 @@ const normalizeComparison = (columns: string[], rows: ComparisonRow[]) => {
     }
     return { ...row, values };
   });
-  return { columnCount, columns: normalizedColumns, rows: normalizedRows };
+  return { columnCount, columns: normalizedColumns, rows: normalizedRows, labelHeader };
 };
 
 const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: ComparisonRow[] }) => {
   // Normalize row lengths so grid stays aligned even with missing cells.
-  const { columnCount, columns: safeColumns, rows: safeRows } = normalizeComparison(columns, rows);
+  const { columnCount, columns: safeColumns, rows: safeRows, labelHeader } = normalizeComparison(columns, rows);
 
   return (
     <div className="mb-14 rounded-xl border border-stone-200 bg-white">
       <div className="overflow-x-auto">
         <div className="grid" style={{ gridTemplateColumns: `150px repeat(${columnCount}, minmax(120px, 1fr))`, minWidth: Math.max((columnCount + 1) * 130, 400) }}>
           <div className="bg-stone-50 px-6 py-4 text-xs font-bold uppercase text-stone-400 flex items-center whitespace-nowrap">
-            对比项
+            {labelHeader}
           </div>
           {safeColumns.map((col, idx) => (
             <div key={idx} className={`bg-stone-50 px-6 py-4 text-sm font-bold text-stone-800 border-l border-stone-200 text-center ${idx === 0 ? 'bg-stone-100/50' : ''}`}>
