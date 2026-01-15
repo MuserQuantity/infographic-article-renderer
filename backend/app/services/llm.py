@@ -1,6 +1,13 @@
+import asyncio
 import json
 import logging
-from openai import AsyncOpenAI
+import random
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    APIStatusError,
+    AsyncOpenAI
+)
 from app.config import get_settings
 from app.models import ArticleData
 
@@ -270,9 +277,50 @@ class LLMService:
         settings = get_settings()
         self.client = AsyncOpenAI(
             base_url=settings.llm_base_url,
-            api_key=settings.llm_api_key
+            api_key=settings.llm_api_key,
+            timeout=settings.llm_timeout_seconds,
+            max_retries=0
         )
         self.model = settings.llm_model_name
+        self.max_retries = max(0, settings.llm_max_retries)
+        self.retry_base_delay = max(0.1, settings.llm_retry_base_delay)
+        self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
+        self.use_response_format = settings.llm_use_response_format
+
+    async def _create_chat_completion(self, **kwargs):
+        attempts = max(1, self.max_retries + 1)
+        for attempt in range(1, attempts + 1):
+            try:
+                return await self.client.chat.completions.create(**kwargs)
+            except APIStatusError as e:
+                status_code = getattr(e, "status_code", None)
+                retryable = status_code in {429, 500, 502, 503, 504}
+                if not retryable or attempt == attempts:
+                    logger.error(f"LLM request failed with status={status_code}, attempt={attempt}/{attempts}")
+                    raise
+                delay = min(self.retry_max_delay, self.retry_base_delay * (2 ** (attempt - 1)))
+                delay += random.uniform(0, delay * 0.25)
+                logger.warning(
+                    "LLM request retrying after status=%s, attempt=%s/%s, sleep=%.2fs",
+                    status_code,
+                    attempt,
+                    attempts,
+                    delay
+                )
+                await asyncio.sleep(delay)
+            except (APIConnectionError, APITimeoutError) as e:
+                if attempt == attempts:
+                    logger.error(f"LLM request failed due to connection/timeout, attempt={attempt}/{attempts}: {e}")
+                    raise
+                delay = min(self.retry_max_delay, self.retry_base_delay * (2 ** (attempt - 1)))
+                delay += random.uniform(0, delay * 0.25)
+                logger.warning(
+                    "LLM request retrying after connection/timeout error, attempt=%s/%s, sleep=%.2fs",
+                    attempt,
+                    attempts,
+                    delay
+                )
+                await asyncio.sleep(delay)
 
     async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
         """Convert markdown content to structured ArticleData JSON."""
@@ -288,14 +336,19 @@ class LLMService:
         )
 
         logger.debug(f"Calling LLM model: {self.model}")
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
+        request_kwargs = {
+            "model": self.model,
+            "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
+            "temperature": 0.3
+        }
+        if self.use_response_format:
+            request_kwargs["response_format"] = {"type": "json_object"}
+
+        response = await self._create_chat_completion(
+            **request_kwargs
         )
 
         content = response.choices[0].message.content
@@ -344,6 +397,7 @@ class LLMService:
             "Failed to validate": "文章格式验证失败，请稍后重试",
             "Connection refused": "服务连接失败，请稍后重试",
             "Connection error": "网络连接错误，请检查网络后重试",
+            "Internal Server Error": "LLM 服务内部错误，请稍后重试",
         }
 
         # 检查是否匹配已知错误

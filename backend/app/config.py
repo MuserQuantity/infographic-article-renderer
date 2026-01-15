@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
     llm_model_name: str = "gpt-4o-mini"
+    llm_timeout_seconds: float = 60.0
+    llm_max_retries: int = 3
+    llm_retry_base_delay: float = 1.0
+    llm_retry_max_delay: float = 8.0
+    llm_use_response_format: bool = True
 
     # Crawl4AI Configuration
     crawl4ai_url: str = "http://localhost:11235"
