@@ -15,6 +15,9 @@ import {
 
 // API base URL - 生产环境使用相对路径（通过 nginx 代理），开发环境使用环境变量
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const MANUAL_URL_PREFIX = 'https://manual.local/';
+
+const isManualUrl = (url: string | null) => Boolean(url && url.startsWith(MANUAL_URL_PREFIX));
 
 interface TaskResponse {
   id: string;
@@ -33,6 +36,8 @@ export default function App() {
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const [articleUrl, setArticleUrl] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<'url' | 'text' | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   // 输入框状态
   const [inputUrl, setInputUrl] = useState('');
@@ -40,6 +45,12 @@ export default function App() {
   const [inputMode, setInputMode] = useState<'url' | 'text'>('url');
   const [showInput, setShowInput] = useState(true);
   const [translateToChinese, setTranslateToChinese] = useState(true);
+
+  // 从 URL 参数获取任务 ID
+  const getIdParam = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('id');
+  }, []);
 
   // 从 URL 参数获取文章链接
   const getUrlParam = useCallback(() => {
@@ -53,110 +64,20 @@ export default function App() {
     return params.get('refresh') === 'true';
   }, []);
 
-  // 更新浏览器地址栏 URL
-  const updateBrowserUrl = useCallback((articleUrl: string | null) => {
+  // 更新浏览器地址栏 URL（优先使用任务 ID）
+  const updateBrowserUrl = useCallback((options: { articleUrl?: string | null; taskId?: string | null }) => {
     const params = new URLSearchParams();
-    if (articleUrl) {
-      params.set('url', articleUrl);
+    if (options.taskId) {
+      params.set('id', options.taskId);
+    } else if (options.articleUrl) {
+      params.set('url', options.articleUrl);
     }
-    const newUrl = articleUrl ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+    const newUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
     window.history.replaceState({}, '', newUrl);
   }, []);
 
-  // 创建或获取任务
-  const fetchArticle = useCallback(async (url: string, forceRefresh: boolean = false, translate: boolean = true) => {
-    setLoading(true);
-    setError(null);
-    setTaskStatus('creating');
-    setArticleUrl(url);
-    setSourceType('url');
-    setShowInput(false);
-
-    // 更新浏览器地址栏
-    updateBrowserUrl(url);
-
-    try {
-      // 创建任务
-      const createResponse = await fetch(`${API_BASE_URL}/api/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, force_refresh: forceRefresh, translate_to_chinese: translate })
-      });
-
-      if (!createResponse.ok) {
-        throw new Error(`Failed to create task: ${createResponse.statusText}`);
-      }
-
-      const task: TaskResponse = await createResponse.json();
-
-      // 如果任务已完成，直接返回结果
-      if (task.status === 'completed' && task.result) {
-        setArticleData(task.result);
-        setLoading(false);
-        setTaskStatus(null);
-        return;
-      }
-
-      // 如果任务失败，显示错误
-      if (task.status === 'failed') {
-        throw new Error(task.error || 'Task failed');
-      }
-
-      // 轮询任务状态
-      await pollTaskStatus(task.id);
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setLoading(false);
-      setTaskStatus(null);
-    }
-  }, []);
-
-  const fetchArticleFromText = useCallback(async (content: string, translate: boolean = true) => {
-    setLoading(true);
-    setError(null);
-    setTaskStatus('creating');
-    setArticleUrl(null);
-    setSourceType('text');
-    setShowInput(false);
-
-    updateBrowserUrl(null);
-
-    try {
-      const createResponse = await fetch(`${API_BASE_URL}/api/tasks/text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, translate_to_chinese: translate })
-      });
-
-      if (!createResponse.ok) {
-        throw new Error(`Failed to create task: ${createResponse.statusText}`);
-      }
-
-      const task: TaskResponse = await createResponse.json();
-
-      if (task.status === 'completed' && task.result) {
-        setArticleData(task.result);
-        setLoading(false);
-        setTaskStatus(null);
-        return;
-      }
-
-      if (task.status === 'failed') {
-        throw new Error(task.error || 'Task failed');
-      }
-
-      await pollTaskStatus(task.id);
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setLoading(false);
-      setTaskStatus(null);
-    }
-  }, []);
-
   // 轮询任务状态
-  const pollTaskStatus = async (taskId: string) => {
+  const pollTaskStatus = useCallback(async (taskId: string) => {
     const maxAttempts = 150; // 最多轮询 150 次（5 分钟）
     const pollInterval = 2000; // 每 2 秒轮询一次
 
@@ -170,6 +91,14 @@ export default function App() {
 
         const task: TaskResponse = await response.json();
         setTaskStatus(task.status);
+
+        if (task.url && !isManualUrl(task.url)) {
+          setArticleUrl(task.url);
+          setSourceType('url');
+        } else {
+          setArticleUrl(null);
+          setSourceType('text');
+        }
 
         if (task.status === 'completed' && task.result) {
           setArticleData(task.result);
@@ -197,7 +126,156 @@ export default function App() {
     setError('Task timeout: processing took too long');
     setLoading(false);
     setTaskStatus(null);
-  };
+  }, []);
+
+  // 创建或获取任务
+  const fetchArticle = useCallback(async (url: string, forceRefresh: boolean = false, translate: boolean = true) => {
+    setLoading(true);
+    setError(null);
+    setTaskStatus('creating');
+    setArticleUrl(url);
+    setSourceType('url');
+    setTaskId(null);
+    setShareCopied(false);
+    setShowInput(false);
+    setInputMode('url');
+
+    try {
+      const createResponse = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, force_refresh: forceRefresh, translate_to_chinese: translate })
+      });
+
+      if (!createResponse.ok) {
+        throw new Error(`Failed to create task: ${createResponse.statusText}`);
+      }
+
+      const task: TaskResponse = await createResponse.json();
+      setTaskId(task.id);
+      updateBrowserUrl({ taskId: task.id });
+
+      if (task.status === 'completed' && task.result) {
+        setArticleData(task.result);
+        setLoading(false);
+        setTaskStatus(null);
+        return;
+      }
+
+      if (task.status === 'failed') {
+        throw new Error(task.error || 'Task failed');
+      }
+
+      await pollTaskStatus(task.id);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setLoading(false);
+      setTaskStatus(null);
+    }
+  }, [pollTaskStatus, updateBrowserUrl]);
+
+  // 创建任务：手动文本
+  const fetchArticleFromText = useCallback(async (text: string, translate: boolean = true) => {
+    setLoading(true);
+    setError(null);
+    setTaskStatus('creating');
+    setArticleUrl(null);
+    setSourceType('text');
+    setTaskId(null);
+    setShareCopied(false);
+    setShowInput(false);
+    setInputMode('text');
+
+    updateBrowserUrl({ articleUrl: null, taskId: null });
+
+    try {
+      const createResponse = await fetch(`${API_BASE_URL}/api/tasks/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, translate_to_chinese: translate })
+      });
+
+      if (!createResponse.ok) {
+        throw new Error(`Failed to create task: ${createResponse.statusText}`);
+      }
+
+      const task: TaskResponse = await createResponse.json();
+      setTaskId(task.id);
+      updateBrowserUrl({ taskId: task.id });
+
+      if (task.status === 'completed' && task.result) {
+        setArticleData(task.result);
+        setLoading(false);
+        setTaskStatus(null);
+        return;
+      }
+
+      if (task.status === 'failed') {
+        throw new Error(task.error || 'Task failed');
+      }
+
+      await pollTaskStatus(task.id);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setLoading(false);
+      setTaskStatus(null);
+    }
+  }, [pollTaskStatus, updateBrowserUrl]);
+
+  // 通过 ID 获取任务
+  const fetchTaskById = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    setTaskStatus('loading');
+    setTaskId(id);
+    setShareCopied(false);
+    setShowInput(false);
+
+    updateBrowserUrl({ taskId: id });
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to get task status: ${response.statusText}`);
+      }
+
+      const task: TaskResponse = await response.json();
+      setTaskId(task.id);
+      setTaskStatus(task.status);
+
+      if (task.url && !isManualUrl(task.url)) {
+        setArticleUrl(task.url);
+        setInputUrl(task.url);
+        setInputMode('url');
+        setSourceType('url');
+      } else {
+        setArticleUrl(null);
+        setInputMode('text');
+        setSourceType('text');
+      }
+
+      if (task.status === 'completed' && task.result) {
+        setArticleData(task.result);
+        setLoading(false);
+        setTaskStatus(null);
+        return;
+      }
+
+      if (task.status === 'failed') {
+        throw new Error(task.error || 'Task failed');
+      }
+
+      await pollTaskStatus(task.id);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setLoading(false);
+      setTaskStatus(null);
+    }
+  }, [pollTaskStatus, updateBrowserUrl]);
 
   // 强制刷新
   const handleRefresh = () => {
@@ -209,7 +287,19 @@ export default function App() {
     }
   };
 
-  // 提交 URL
+  const handleCopyShareLink = async () => {
+    if (!taskId) return;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?id=${taskId}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1500);
+    } catch (err) {
+      console.error('Failed to copy share link', err);
+    }
+  };
+
+  // 提交
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputMode === 'url' && inputUrl.trim()) {
@@ -227,8 +317,10 @@ export default function App() {
     setError(null);
     setArticleUrl(null);
     setSourceType(null);
+    setTaskId(null);
+    setShareCopied(false);
     // 清除地址栏参数
-    updateBrowserUrl(null);
+    updateBrowserUrl({ articleUrl: null, taskId: null });
   };
 
   // 分析文章中的链接
@@ -240,15 +332,21 @@ export default function App() {
 
   // 初始化：检查 URL 参数
   useEffect(() => {
+    const id = getIdParam();
     const url = getUrlParam();
     const forceRefresh = getForceRefresh();
+
+    if (id) {
+      fetchTaskById(id);
+      return;
+    }
 
     if (url) {
       setInputMode('url');
       setInputUrl(url);
       fetchArticle(url, forceRefresh);
     }
-  }, [getUrlParam, getForceRefresh, fetchArticle]);
+  }, [getIdParam, getUrlParam, getForceRefresh, fetchTaskById, fetchArticle]);
 
   // 输入界面
   if (showInput && !loading) {
@@ -368,6 +466,7 @@ export default function App() {
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
           <p className="text-stone-400 text-lg mb-2">
+            {taskStatus === 'loading' && '获取任务中...'}
             {taskStatus === 'creating' && '创建任务中...'}
             {taskStatus === 'pending' && '等待处理...'}
             {taskStatus === 'processing' && (sourceType === 'text' ? '正在转换文本内容...' : '正在爬取和转换文章...')}
@@ -378,8 +477,11 @@ export default function App() {
               <span className="truncate">{articleUrl}</span>
             </p>
           )}
-          {sourceType === 'text' && (
-            <p className="text-stone-600 text-sm">手动输入文本</p>
+          {!articleUrl && taskId && (
+            <p className="text-stone-600 text-sm flex items-center justify-center gap-2 max-w-md mx-auto truncate px-4">
+              <Link className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">任务ID: {taskId}</span>
+            </p>
           )}
           <button
             onClick={handleBack}
@@ -434,7 +536,17 @@ export default function App() {
         >
           新文章
         </button>
-        {sourceType === 'url' && articleUrl && (
+        {taskId && (
+          <button
+            onClick={handleCopyShareLink}
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
+            title="复制可访问链接"
+          >
+            <Link className="w-4 h-4" />
+            {shareCopied ? '已复制' : '分享链接'}
+          </button>
+        )}
+        {articleUrl && (
           <>
             <a
               href={articleUrl}

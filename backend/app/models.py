@@ -15,8 +15,15 @@ class CreateTaskRequest(BaseModel):
 
 
 class CreateTextTaskRequest(BaseModel):
-    content: str
+    text: str
     translate_to_chinese: bool = True  # 是否翻译为中文，默认开启
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_text(cls, data):
+        if isinstance(data, dict) and "text" not in data and "content" in data:
+            data = {**data, "text": data.get("content")}
+        return data
 
 
 class RefreshTaskRequest(BaseModel):

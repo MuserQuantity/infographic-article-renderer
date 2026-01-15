@@ -208,6 +208,21 @@
       color: #a8a29e;
       cursor: pointer;
     }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #a8a29e;
+      min-height: 16px;
+    }
+
+    .status.error {
+      color: #f87171;
+    }
+
+    .status.success {
+      color: #34d399;
+    }
   </style>
 </head>
 <body>
@@ -233,6 +248,8 @@
     </svg>
     分析此页面
   </button>
+
+  <div class="status" id="statusMsg"></div>
 
   <div class="settings">
     <div class="settings-toggle" id="settingsToggle">

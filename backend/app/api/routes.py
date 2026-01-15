@@ -17,6 +17,12 @@ from app.services.image_service import image_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["tasks"])
+MANUAL_URL_PREFIX = "https://manual.local/"
+
+
+def build_manual_url() -> str:
+    return f"{MANUAL_URL_PREFIX}{uuid.uuid4().hex}"
+
 
 def task_to_response(task: Task) -> TaskResponse:
     return TaskResponse(
@@ -46,13 +52,13 @@ async def create_and_start_task(
 
 
 async def create_and_start_text_task(
-    content: str,
+    text: str,
     translate_to_chinese: bool,
     background_tasks: BackgroundTasks
 ) -> TaskResponse:
-    manual_url = f"https://manual.local/{uuid.uuid4().hex}"
+    manual_url = build_manual_url()
     task = await db_service.create_task(manual_url)
-    background_tasks.add_task(process_text_task, task.id, content, translate_to_chinese)
+    background_tasks.add_task(process_text_task, task.id, text, translate_to_chinese)
     return task_to_response(task)
 
 
@@ -122,15 +128,15 @@ async def process_task(task_id: str, url: str, translate_to_chinese: bool = True
             )
 
 
-async def process_text_task(task_id: str, content: str, translate_to_chinese: bool = True):
+async def process_text_task(task_id: str, text: str, translate_to_chinese: bool = True):
     """Background task to convert manual text content to article JSON."""
-    logger.info(f"[Task {task_id}] Starting processing for manual text input")
+    logger.info(f"[Task {task_id}] Starting processing for manual text, length: {len(text)}")
     try:
         logger.info(f"[Task {task_id}] Updating status to 'processing'")
         await db_service.update_task_status(task_id, "processing")
 
         logger.info(f"[Task {task_id}] Step 1: Converting manual content to article JSON using LLM...")
-        article_data = await llm_service.convert_to_article_json(content, translate_to_chinese)
+        article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
         logger.info(f"[Task {task_id}] LLM conversion completed successfully")
 
         logger.info(f"[Task {task_id}] Step 2: Processing images...")
@@ -218,15 +224,13 @@ async def create_text_task(
     request: CreateTextTaskRequest,
     background_tasks: BackgroundTasks
 ):
-    """
-    Create a new task from manual text input.
-    """
-    content = request.content.strip()
-    if not content:
-        raise HTTPException(status_code=400, detail="Content is required")
+    """Create a new task from manual text input."""
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required")
 
     return await create_and_start_text_task(
-        content,
+        text,
         request.translate_to_chinese,
         background_tasks
     )

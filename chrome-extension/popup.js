@@ -1,9 +1,13 @@
 // 默认服务地址
 const DEFAULT_SERVER_URL = 'https://infographic.muserquantity.cn';
+const BILIBILI_VIDEO_PREFIX = 'https://www.bilibili.com/video/';
+const BILIBILI_BVID_PATTERN = /\/video\/(BV[0-9A-Za-z]+)/;
+const BILIBILI_AID_PATTERN = /\/video\/av(\d+)/i;
 
 // DOM 元素
 const currentUrlEl = document.getElementById('currentUrl');
 const analyzeBtnEl = document.getElementById('analyzeBtn');
+const statusEl = document.getElementById('statusMsg');
 const settingsToggleEl = document.getElementById('settingsToggle');
 const settingsContentEl = document.getElementById('settingsContent');
 const serverUrlEl = document.getElementById('serverUrl');
@@ -12,6 +16,130 @@ const savedMsgEl = document.getElementById('savedMsg');
 const translateCheckEl = document.getElementById('translateCheck');
 
 let currentTabUrl = '';
+
+function setStatus(message, type = 'info') {
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove('error', 'success');
+  if (type !== 'info') {
+    statusEl.classList.add(type);
+  }
+}
+
+function isBilibiliVideoUrl(url) {
+  return url.startsWith(BILIBILI_VIDEO_PREFIX);
+}
+
+function extractBilibiliId(url) {
+  const bvidMatch = url.match(BILIBILI_BVID_PATTERN);
+  if (bvidMatch) {
+    return { bvid: bvidMatch[1], aid: null };
+  }
+  const aidMatch = url.match(BILIBILI_AID_PATTERN);
+  if (aidMatch) {
+    return { bvid: null, aid: aidMatch[1] };
+  }
+  return { bvid: null, aid: null };
+}
+
+function getBilibiliPageParam(url) {
+  try {
+    const parsed = new URL(url);
+    const page = Number(parsed.searchParams.get('p'));
+    return Number.isFinite(page) && page > 0 ? page : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    throw new Error(`请求失败: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function getBilibiliSubtitleText(videoUrl) {
+  const { bvid, aid } = extractBilibiliId(videoUrl);
+  if (!bvid && !aid) {
+    throw new Error('未识别到 B 站视频 ID');
+  }
+
+  const pageParam = getBilibiliPageParam(videoUrl);
+  const pagelistUrl = bvid
+    ? `https://api.bilibili.com/x/player/pagelist?bvid=${bvid}`
+    : `https://api.bilibili.com/x/player/pagelist?aid=${aid}`;
+  const pagelist = await fetchJson(pagelistUrl, { credentials: 'include' });
+
+  if (pagelist.code !== 0 || !Array.isArray(pagelist.data) || pagelist.data.length === 0) {
+    throw new Error('未找到视频分P信息');
+  }
+
+  let pageInfo = pagelist.data[0];
+  if (pageParam) {
+    pageInfo = pagelist.data.find((item) => item.page === pageParam) || pageInfo;
+  }
+
+  if (!pageInfo || !pageInfo.cid) {
+    throw new Error('无法获取视频 CID');
+  }
+
+  const playerUrl = bvid
+    ? `https://api.bilibili.com/x/player/v2?bvid=${bvid}&cid=${pageInfo.cid}`
+    : `https://api.bilibili.com/x/player/v2?aid=${aid}&cid=${pageInfo.cid}`;
+  const playerInfo = await fetchJson(playerUrl, { credentials: 'include' });
+
+  const subtitleList = playerInfo?.data?.subtitle?.list || playerInfo?.data?.subtitle?.subtitles || [];
+  if (!Array.isArray(subtitleList) || subtitleList.length === 0) {
+    throw new Error('该视频未提供字幕');
+  }
+
+  const preferredSubtitle = subtitleList.find((item) => {
+    const lang = `${item.lan || ''}`.toLowerCase();
+    const langDoc = `${item.lan_doc || ''}`;
+    return lang.startsWith('zh') || langDoc.includes('中文');
+  }) || subtitleList[0];
+
+  let subtitleUrl = preferredSubtitle.subtitle_url || preferredSubtitle.subtitleUrl || '';
+  if (!subtitleUrl) {
+    throw new Error('字幕地址缺失');
+  }
+  if (subtitleUrl.startsWith('//')) {
+    subtitleUrl = `https:${subtitleUrl}`;
+  }
+
+  const subtitleData = await fetchJson(subtitleUrl, { credentials: 'include' });
+  const subtitleBody = subtitleData?.body || subtitleData?.data?.body || [];
+  const lines = Array.isArray(subtitleBody)
+    ? subtitleBody.map((item) => item.content).filter(Boolean)
+    : [];
+
+  if (lines.length === 0) {
+    throw new Error('字幕内容为空');
+  }
+
+  const header = pageInfo.part ? `分P：${pageInfo.part}\n\n` : '';
+  return `${header}${lines.join('\n')}`;
+}
+
+async function createTextTask(serverUrl, text, translateToChinese) {
+  const response = await fetch(`${serverUrl}/api/tasks/text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, translate_to_chinese: translateToChinese })
+  });
+
+  if (!response.ok) {
+    throw new Error(`提交字幕失败: ${response.status}`);
+  }
+
+  const task = await response.json();
+  if (!task || !task.id) {
+    throw new Error('解析任务创建失败');
+  }
+  return task.id;
+}
 
 // 初始化
 async function init() {
@@ -37,6 +165,7 @@ async function init() {
     currentUrlEl.textContent = '获取页面失败';
     analyzeBtnEl.disabled = true;
   }
+  setStatus('');
 
   // 加载保存的设置
   const result = await chrome.storage.sync.get(['serverUrl', 'translateToChinese']);
@@ -55,13 +184,30 @@ analyzeBtnEl.addEventListener('click', async () => {
   // 保存翻译选项
   await chrome.storage.sync.set({ translateToChinese: translate });
 
-  // 构建目标 URL
+  if (isBilibiliVideoUrl(currentTabUrl)) {
+    analyzeBtnEl.disabled = true;
+    setStatus('检测到 B 站视频，正在提取字幕...');
+    try {
+      const subtitleText = await getBilibiliSubtitleText(currentTabUrl);
+      setStatus('字幕提取完成，提交解析中...');
+      const taskId = await createTextTask(
+        serverUrl,
+        `来源：Bilibili 字幕\n\n${subtitleText}`,
+        translate
+      );
+      const targetUrl = `${serverUrl}/?id=${encodeURIComponent(taskId)}`;
+      chrome.tabs.create({ url: targetUrl });
+      window.close();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '字幕获取失败';
+      setStatus(message, 'error');
+      analyzeBtnEl.disabled = false;
+    }
+    return;
+  }
+
   const targetUrl = `${serverUrl}/?url=${encodeURIComponent(currentTabUrl)}`;
-
-  // 在新标签页打开
   chrome.tabs.create({ url: targetUrl });
-
-  // 关闭 popup
   window.close();
 });
 
