@@ -451,8 +451,15 @@ export default function App() {
           </form>
 
           {/* 使用说明 */}
-          <div className="mt-10 text-center text-stone-600 text-sm">
+          <div className="mt-10 text-center text-stone-600 text-sm space-y-3">
             <p>支持文章链接和手动文本输入，系统会自动转换为信息图格式</p>
+            <a
+              href="/articles"
+              className="inline-flex items-center justify-center gap-2 text-stone-500 hover:text-stone-300 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              浏览文章库
+            </a>
           </div>
         </div>
       </div>
@@ -536,6 +543,13 @@ export default function App() {
         >
           新文章
         </button>
+        <a
+          href="/articles"
+          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
+        >
+          <FileText className="w-4 h-4" />
+          文章库
+        </a>
         {taskId && (
           <button
             onClick={handleCopyShareLink}

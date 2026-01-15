@@ -7,3 +7,54 @@
 *::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
 }
+
+.articles-theme {
+  --paper: #f7f1e6;
+  --paper-deep: #eadfcd;
+  --ink: #2a221c;
+  --muted: #6f655b;
+  --accent: #d97706;
+  --accent-strong: #b45309;
+  --accent-soft: #fff1cf;
+  --card: rgba(255, 255, 255, 0.82);
+  --ring: rgba(217, 119, 6, 0.25);
+  --font-sans: "Noto Sans SC", "Noto Sans", sans-serif;
+  --font-serif: "Noto Serif SC", "Noto Serif", serif;
+}
+
+.articles-fade {
+  animation: articlesFade 600ms ease both;
+}
+
+.articles-rise {
+  animation: articlesRise 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes articlesFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes articlesRise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .articles-fade,
+  .articles-rise {
+    animation: none;
+  }
+}

@@ -7,6 +7,8 @@ from app.models import (
     RefreshTaskRequest,
     Task,
     TaskResponse,
+    TaskListItem,
+    TaskListResponse,
     ErrorResponse
 )
 from app.services.database import db_service
@@ -36,6 +38,19 @@ def task_to_response(task: Task) -> TaskResponse:
     )
 
 
+def task_to_list_item(task: Task) -> TaskListItem:
+    return TaskListItem(
+        id=task.id,
+        url=task.url,
+        status=task.status,
+        title=task.result.title if task.result else None,
+        subtitle=task.result.subtitle if task.result else None,
+        meta=task.result.meta if task.result else None,
+        created_at=task.created_at.isoformat() if task.created_at else None,
+        updated_at=task.updated_at.isoformat() if task.updated_at else None,
+    )
+
+
 async def create_and_start_task(
     url: str,
     translate_to_chinese: bool,
@@ -54,10 +69,11 @@ async def create_and_start_task(
 async def create_and_start_text_task(
     text: str,
     translate_to_chinese: bool,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    source_url: str | None = None
 ) -> TaskResponse:
-    manual_url = build_manual_url()
-    task = await db_service.create_task(manual_url)
+    task_url = source_url or build_manual_url()
+    task = await db_service.create_task(task_url)
     background_tasks.add_task(process_text_task, task.id, text, translate_to_chinese)
     return task_to_response(task)
 
@@ -232,7 +248,33 @@ async def create_text_task(
     return await create_and_start_text_task(
         text,
         request.translate_to_chinese,
-        background_tasks
+        background_tasks,
+        source_url=str(request.source_url) if request.source_url else None
+    )
+
+
+@router.get(
+    "/tasks",
+    response_model=TaskListResponse
+)
+async def list_tasks(page: int = 1, per_page: int = 12):
+    """List completed tasks with pagination, sorted by newest first."""
+    if page < 1:
+        raise HTTPException(status_code=400, detail="page must be >= 1")
+    if per_page < 1 or per_page > 50:
+        raise HTTPException(status_code=400, detail="per_page must be between 1 and 50")
+
+    tasks, total_items, total_pages = await db_service.list_tasks(
+        page=page,
+        per_page=per_page,
+        status="completed"
+    )
+    return TaskListResponse(
+        items=[task_to_list_item(task) for task in tasks],
+        page=page,
+        per_page=per_page,
+        total_items=total_items,
+        total_pages=total_pages
     )
 
 

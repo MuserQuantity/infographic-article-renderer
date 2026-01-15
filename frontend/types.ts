@@ -251,3 +251,28 @@ export interface ArticleData {
   };
   sections: ArticleSection[];
 }
+
+export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface ArticleListItem {
+  id: string;
+  url: string;
+  status: TaskStatus;
+  title?: string | null;
+  subtitle?: string | null;
+  meta?: {
+    author?: string;
+    date?: string;
+    readTime?: string;
+  } | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ArticleListResponse {
+  items: ArticleListItem[];
+  page: number;
+  per_page: number;
+  total_items: number;
+  total_pages: number;
+}

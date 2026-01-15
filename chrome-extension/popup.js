@@ -3,10 +3,12 @@ const DEFAULT_SERVER_URL = 'https://infographic.muserquantity.cn';
 const BILIBILI_VIDEO_PREFIX = 'https://www.bilibili.com/video/';
 const BILIBILI_BVID_PATTERN = /\/video\/(BV[0-9A-Za-z]+)/;
 const BILIBILI_AID_PATTERN = /\/video\/av(\d+)/i;
+const BILIBILI_TASKS_KEY = 'bilibiliTasks';
 
 // DOM 元素
 const currentUrlEl = document.getElementById('currentUrl');
 const analyzeBtnEl = document.getElementById('analyzeBtn');
+const articlesBtnEl = document.getElementById('articlesBtn');
 const statusEl = document.getElementById('statusMsg');
 const settingsToggleEl = document.getElementById('settingsToggle');
 const settingsContentEl = document.getElementById('settingsContent');
@@ -49,6 +51,57 @@ function getBilibiliPageParam(url) {
     return Number.isFinite(page) && page > 0 ? page : null;
   } catch (err) {
     return null;
+  }
+}
+
+function buildBilibiliSourceUrl(url) {
+  const { bvid, aid } = extractBilibiliId(url);
+  if (!bvid && !aid) {
+    return null;
+  }
+  const page = getBilibiliPageParam(url);
+  const baseUrl = bvid
+    ? `https://www.bilibili.com/video/${bvid}`
+    : `https://www.bilibili.com/video/av${aid}`;
+  if (page && page > 1) {
+    return `${baseUrl}?p=${page}`;
+  }
+  return baseUrl;
+}
+
+function buildBilibiliCacheKey(url, translateToChinese) {
+  const { bvid, aid } = extractBilibiliId(url);
+  if (!bvid && !aid) {
+    return null;
+  }
+  const page = getBilibiliPageParam(url);
+  const pagePart = page ? `p${page}` : 'p1';
+  const translatePart = translateToChinese ? 'zh' : 'raw';
+  return `${bvid ? `bvid:${bvid}` : `aid:${aid}`}:${pagePart}:${translatePart}`;
+}
+
+async function getCachedBilibiliTaskId(cacheKey) {
+  if (!cacheKey) return null;
+  const result = await chrome.storage.local.get([BILIBILI_TASKS_KEY]);
+  const cacheMap = result[BILIBILI_TASKS_KEY] || {};
+  return cacheMap[cacheKey] || null;
+}
+
+async function setCachedBilibiliTaskId(cacheKey, taskId) {
+  if (!cacheKey) return;
+  const result = await chrome.storage.local.get([BILIBILI_TASKS_KEY]);
+  const cacheMap = result[BILIBILI_TASKS_KEY] || {};
+  cacheMap[cacheKey] = taskId;
+  await chrome.storage.local.set({ [BILIBILI_TASKS_KEY]: cacheMap });
+}
+
+async function clearCachedBilibiliTaskId(cacheKey) {
+  if (!cacheKey) return;
+  const result = await chrome.storage.local.get([BILIBILI_TASKS_KEY]);
+  const cacheMap = result[BILIBILI_TASKS_KEY] || {};
+  if (cacheKey in cacheMap) {
+    delete cacheMap[cacheKey];
+    await chrome.storage.local.set({ [BILIBILI_TASKS_KEY]: cacheMap });
   }
 }
 
@@ -123,11 +176,15 @@ async function getBilibiliSubtitleText(videoUrl) {
   return `${header}${lines.join('\n')}`;
 }
 
-async function createTextTask(serverUrl, text, translateToChinese) {
+async function createTextTask(serverUrl, text, translateToChinese, sourceUrl) {
+  const payload = { text, translate_to_chinese: translateToChinese };
+  if (sourceUrl) {
+    payload.source_url = sourceUrl;
+  }
   const response = await fetch(`${serverUrl}/api/tasks/text`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, translate_to_chinese: translateToChinese })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -186,6 +243,24 @@ analyzeBtnEl.addEventListener('click', async () => {
 
   if (isBilibiliVideoUrl(currentTabUrl)) {
     analyzeBtnEl.disabled = true;
+    const cacheKey = buildBilibiliCacheKey(currentTabUrl, translate);
+    const sourceUrl = buildBilibiliSourceUrl(currentTabUrl);
+    const cachedTaskId = await getCachedBilibiliTaskId(cacheKey);
+    if (cachedTaskId) {
+      setStatus('检测到已解析记录，正在打开...');
+      try {
+        const task = await fetchJson(`${serverUrl}/api/tasks/${cachedTaskId}`);
+        if (task && task.status !== 'failed') {
+          const targetUrl = `${serverUrl}/?id=${encodeURIComponent(task.id)}`;
+          chrome.tabs.create({ url: targetUrl });
+          window.close();
+          return;
+        }
+      } catch (error) {
+        await clearCachedBilibiliTaskId(cacheKey);
+      }
+    }
+
     setStatus('检测到 B 站视频，正在提取字幕...');
     try {
       const subtitleText = await getBilibiliSubtitleText(currentTabUrl);
@@ -193,8 +268,10 @@ analyzeBtnEl.addEventListener('click', async () => {
       const taskId = await createTextTask(
         serverUrl,
         `来源：Bilibili 字幕\n\n${subtitleText}`,
-        translate
+        translate,
+        sourceUrl
       );
+      await setCachedBilibiliTaskId(cacheKey, taskId);
       const targetUrl = `${serverUrl}/?id=${encodeURIComponent(taskId)}`;
       chrome.tabs.create({ url: targetUrl });
       window.close();
@@ -207,6 +284,15 @@ analyzeBtnEl.addEventListener('click', async () => {
   }
 
   const targetUrl = `${serverUrl}/?url=${encodeURIComponent(currentTabUrl)}`;
+  chrome.tabs.create({ url: targetUrl });
+  window.close();
+});
+
+// 文章库按钮点击
+articlesBtnEl.addEventListener('click', async () => {
+  const result = await chrome.storage.sync.get(['serverUrl']);
+  const serverUrl = (result.serverUrl || DEFAULT_SERVER_URL).replace(/\/$/, '');
+  const targetUrl = `${serverUrl}/articles`;
   chrome.tabs.create({ url: targetUrl });
   window.close();
 });

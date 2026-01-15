@@ -17,12 +17,15 @@ class CreateTaskRequest(BaseModel):
 class CreateTextTaskRequest(BaseModel):
     text: str
     translate_to_chinese: bool = True  # 是否翻译为中文，默认开启
+    source_url: Optional[HttpUrl] = None
 
     @model_validator(mode="before")
     @classmethod
     def normalize_text(cls, data):
         if isinstance(data, dict) and "text" not in data and "content" in data:
             data = {**data, "text": data.get("content")}
+        if isinstance(data, dict) and "source_url" not in data and "url" in data:
+            data = {**data, "source_url": data.get("url")}
         return data
 
 
@@ -207,6 +210,25 @@ class TaskResponse(BaseModel):
     error: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+class TaskListItem(BaseModel):
+    id: str
+    url: str
+    status: TaskStatus
+    title: Optional[str] = None
+    subtitle: Optional[str] = None
+    meta: Optional[ArticleMeta] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class TaskListResponse(BaseModel):
+    items: list[TaskListItem]
+    page: int
+    per_page: int
+    total_items: int
+    total_pages: int
 
 
 class ErrorResponse(BaseModel):

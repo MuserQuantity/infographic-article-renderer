@@ -172,6 +172,30 @@ class PocketBaseService:
         except httpx.HTTPStatusError:
             return None
 
+    async def list_tasks(
+        self,
+        page: int = 1,
+        per_page: int = 12,
+        status: Optional[TaskStatus] = None
+    ) -> tuple[list[Task], int, int]:
+        """List tasks with pagination, optionally filtered by status."""
+        try:
+            params = [f"page={page}", f"perPage={per_page}", "sort=-created"]
+            if status:
+                filter_query = quote(f'status="{status}"', safe="")
+                params.append(f"filter={filter_query}")
+            url = f"{self.api_url}?{'&'.join(params)}"
+            response = await self._request("GET", url)
+            items = response.get("items", [])
+            tasks = [self._parse_task(item) for item in items]
+            total_items = int(response.get("totalItems", len(tasks)))
+            total_pages = int(response.get("totalPages", 1))
+            return tasks, total_items, total_pages
+        except httpx.HTTPStatusError:
+            return [], 0, 0
+        except Exception:
+            return [], 0, 0
+
     async def create_task(self, url: str) -> Task:
         """Create a new task."""
         data = {
