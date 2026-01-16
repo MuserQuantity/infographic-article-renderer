@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Infographic Analyzer</title>
+  <title>Infographic Renderer</title>
   <style>
     * {
       box-sizing: border-box;
@@ -11,31 +11,49 @@
       padding: 0;
     }
 
+    :root {
+      --bg: #0c0a09;
+      --panel: #1c1917;
+      --panel-border: #292524;
+      --panel-strong: #44403c;
+      --text: #f5f5f4;
+      --muted: #a8a29e;
+      --muted-strong: #78716c;
+      --brand-from: #6366f1;
+      --brand-to: #9333ea;
+      --action-from: #4f46e5;
+      --action-to: #9333ea;
+      --action-glow: rgba(79, 70, 229, 0.25);
+      --success: #34d399;
+      --error: #f87171;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: "Noto Sans SC", "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       width: 320px;
-      background: #1c1917;
-      color: #e7e5e4;
+      background: var(--bg);
+      color: var(--text);
       padding: 16px;
     }
 
     .header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #44403c;
+      gap: 12px;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--panel-border);
     }
 
     .logo {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, #6366f1, #a855f7);
-      border-radius: 8px;
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--brand-from), var(--brand-to));
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 10px 25px var(--action-glow);
     }
 
     .logo svg {
@@ -45,17 +63,18 @@
     }
 
     .title {
-      font-size: 14px;
-      font-weight: 600;
+      font-size: 15px;
+      font-weight: 700;
     }
 
     .current-url {
-      background: #292524;
-      border-radius: 8px;
-      padding: 10px 12px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 12px 14px;
       margin-bottom: 12px;
       font-size: 12px;
-      color: #a8a29e;
+      color: var(--muted);
       word-break: break-all;
       max-height: 60px;
       overflow: hidden;
@@ -66,7 +85,7 @@
       width: 100%;
       padding: 12px 16px;
       border: none;
-      border-radius: 8px;
+      border-radius: 12px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
@@ -74,34 +93,36 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      transition: all 0.2s;
+      transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #6366f1, #a855f7);
+      background: linear-gradient(135deg, var(--action-from), var(--action-to));
       color: white;
+      box-shadow: 0 12px 24px var(--action-glow);
     }
 
     .btn-primary:hover {
-      opacity: 0.9;
       transform: translateY(-1px);
+      box-shadow: 0 14px 28px rgba(79, 70, 229, 0.32);
     }
 
     .btn-primary:disabled {
       opacity: 0.5;
       cursor: not-allowed;
       transform: none;
+      box-shadow: none;
     }
 
     .btn-secondary {
       margin-top: 10px;
-      background: #292524;
-      color: #e7e5e4;
-      border: 1px solid #44403c;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--panel-strong);
     }
 
     .btn-secondary:hover {
-      background: #373430;
+      background: #292524;
     }
 
     .btn svg {
@@ -112,7 +133,7 @@
     .settings {
       margin-top: 16px;
       padding-top: 12px;
-      border-top: 1px solid #44403c;
+      border-top: 1px solid var(--panel-border);
     }
 
     .settings-toggle {
@@ -120,13 +141,16 @@
       align-items: center;
       justify-content: space-between;
       cursor: pointer;
-      padding: 8px 0;
-      color: #a8a29e;
+      padding: 8px 10px;
+      color: var(--muted);
       font-size: 12px;
+      border-radius: 10px;
+      transition: color 0.2s, background-color 0.2s;
     }
 
     .settings-toggle:hover {
-      color: #e7e5e4;
+      color: var(--text);
+      background: #1c1917;
     }
 
     .settings-toggle svg {
@@ -155,43 +179,46 @@
     .form-label {
       display: block;
       font-size: 12px;
-      color: #a8a29e;
+      color: var(--muted);
       margin-bottom: 6px;
     }
 
     .form-input {
       width: 100%;
       padding: 10px 12px;
-      background: #292524;
-      border: 1px solid #44403c;
-      border-radius: 8px;
-      color: #e7e5e4;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      color: var(--text);
       font-size: 13px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .form-input:focus {
-      border-color: #6366f1;
+      border-color: var(--action-from);
+      box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.4);
     }
 
     .form-input::placeholder {
-      color: #78716c;
+      color: var(--muted-strong);
     }
 
     .btn-save {
-      background: #44403c;
-      color: #e7e5e4;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--panel-strong);
       font-size: 12px;
       padding: 8px 12px;
+      border-radius: 10px;
     }
 
     .btn-save:hover {
-      background: #57534e;
+      background: #292524;
     }
 
     .saved-msg {
-      color: #22c55e;
+      color: var(--success);
       font-size: 12px;
       margin-top: 8px;
       display: none;
@@ -211,28 +238,28 @@
     .checkbox-group input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      accent-color: #6366f1;
+      accent-color: var(--action-from);
     }
 
     .checkbox-group label {
       font-size: 13px;
-      color: #a8a29e;
+      color: var(--muted);
       cursor: pointer;
     }
 
     .status {
       margin-top: 10px;
       font-size: 12px;
-      color: #a8a29e;
+      color: var(--muted);
       min-height: 16px;
     }
 
     .status.error {
-      color: #f87171;
+      color: var(--error);
     }
 
     .status.success {
-      color: #34d399;
+      color: var(--success);
     }
   </style>
 </head>
@@ -243,7 +270,7 @@
         <path d="M12 3l1.5 4.5H18l-3.5 2.5 1.5 4.5L12 12l-4 2.5 1.5-4.5L6 7.5h4.5L12 3z"/>
       </svg>
     </div>
-    <div class="title">Infographic Analyzer</div>
+    <div class="title">Infographic Renderer</div>
   </div>
 
   <div class="current-url" id="currentUrl">加载中...</div>
@@ -257,14 +284,14 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M12 3l1.5 4.5H18l-3.5 2.5 1.5 4.5L12 12l-4 2.5 1.5-4.5L6 7.5h4.5L12 3z"/>
     </svg>
-    分析此页面
+    生成此页面信息图
   </button>
 
   <button class="btn btn-secondary" id="articlesBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M4 6h16M4 12h16M4 18h10"/>
     </svg>
-    打开文章库
+    浏览文章库
   </button>
 
   <div class="status" id="statusMsg"></div>

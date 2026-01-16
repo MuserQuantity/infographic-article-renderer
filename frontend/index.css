@@ -8,6 +8,15 @@
   display: none; /* Chrome, Safari, Opera */
 }
 
+:root {
+  --font-sans: "Noto Sans SC", "Noto Sans", sans-serif;
+  --font-serif: "Noto Serif SC", "Noto Serif", serif;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
 .articles-theme {
   --paper: #f7f1e6;
   --paper-deep: #eadfcd;
