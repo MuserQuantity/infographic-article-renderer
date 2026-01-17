@@ -285,6 +285,180 @@
     .status.success {
       color: var(--success);
     }
+
+    /* 确认对话框样式 */
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .confirm-overlay.show {
+      display: flex;
+    }
+
+    .confirm-dialog {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
+      max-height: 90vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .confirm-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--panel-border);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .confirm-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+      /* 隐藏滚动条但保持滚动功能 */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge */
+    }
+
+    .confirm-body::-webkit-scrollbar {
+      display: none; /* Chrome/Safari */
+    }
+
+    .confirm-info {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .confirm-info strong {
+      color: var(--text);
+      display: inline-block;
+      min-width: 60px;
+    }
+
+    .confirm-subtitle-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .confirm-subtitle-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--text);
+      transition: background 0.2s;
+    }
+
+    .confirm-subtitle-toggle:hover {
+      background: #1c1917;
+    }
+
+    .confirm-subtitle-toggle svg {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .confirm-subtitle-toggle.open svg {
+      transform: rotate(180deg);
+    }
+
+    .confirm-subtitle-content {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .confirm-subtitle-content.show {
+      display: block;
+    }
+
+    .confirm-subtitle-textarea {
+      width: 100%;
+      height: 200px;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 12px;
+      font-family: "Noto Sans SC", monospace;
+      resize: vertical;
+      line-height: 1.5;
+      outline: none;
+      /* 隐藏滚动条但保持滚动功能 */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge */
+    }
+
+    .confirm-subtitle-textarea::-webkit-scrollbar {
+      display: none; /* Chrome/Safari */
+    }
+
+    .confirm-subtitle-textarea:focus {
+      border-color: var(--action-from);
+      box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.4);
+    }
+
+    .confirm-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--panel-border);
+      display: flex;
+      gap: 10px;
+    }
+
+    .confirm-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .confirm-btn-cancel {
+      background: var(--panel-strong);
+      color: var(--text);
+    }
+
+    .confirm-btn-cancel:hover {
+      background: #57534e;
+    }
+
+    .confirm-btn-confirm {
+      background: linear-gradient(135deg, var(--action-from), var(--action-to));
+      color: white;
+      box-shadow: 0 4px 12px var(--action-glow);
+    }
+
+    .confirm-btn-confirm:hover {
+      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+    }
   </style>
 </head>
 <body>
@@ -340,6 +514,20 @@
       </div>
       <button class="btn btn-save" id="saveBtn">保存设置</button>
       <div class="saved-msg" id="savedMsg">设置已保存</div>
+    </div>
+  </div>
+
+  <!-- 确认对话框 -->
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-dialog">
+      <div class="confirm-header" id="confirmHeader">确认分析</div>
+      <div class="confirm-body" id="confirmBody">
+        <!-- 动态内容将在这里插入 -->
+      </div>
+      <div class="confirm-footer">
+        <button class="confirm-btn confirm-btn-cancel" id="confirmCancel">取消</button>
+        <button class="confirm-btn confirm-btn-confirm" id="confirmOk">确认分析</button>
+      </div>
     </div>
   </div>
 

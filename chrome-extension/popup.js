@@ -18,7 +18,16 @@ const savedMsgEl = document.getElementById('savedMsg');
 const translateCheckEl = document.getElementById('translateCheck');
 const serverLinkBtnEl = document.getElementById('serverLinkBtn');
 
+// 确认对话框元素
+const confirmOverlayEl = document.getElementById('confirmOverlay');
+const confirmHeaderEl = document.getElementById('confirmHeader');
+const confirmBodyEl = document.getElementById('confirmBody');
+const confirmCancelEl = document.getElementById('confirmCancel');
+const confirmOkEl = document.getElementById('confirmOk');
+
 let currentTabUrl = '';
+let currentTabId = null;
+let confirmResolve = null;
 
 function setStatus(message, type = 'info') {
   if (!statusEl) return;
@@ -28,6 +37,114 @@ function setStatus(message, type = 'info') {
     statusEl.classList.add(type);
   }
 }
+
+// 显示自定义确认对话框
+function showConfirmDialog(options) {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+
+    // 设置标题
+    confirmHeaderEl.textContent = options.title || '确认分析';
+
+    // 构建内容
+    let bodyHTML = '';
+
+    if (options.type === 'bilibili' && options.metadata) {
+      const meta = options.metadata;
+      bodyHTML += '<div>';
+      if (meta.title) {
+        bodyHTML += `<div class="confirm-info"><strong>📹 标题:</strong> ${escapeHtml(meta.title)}</div>`;
+      }
+      if (meta.owner?.name) {
+        bodyHTML += `<div class="confirm-info"><strong>👤 UP主:</strong> ${escapeHtml(meta.owner.name)}</div>`;
+      }
+      if (meta.part) {
+        bodyHTML += `<div class="confirm-info"><strong>📑 分P:</strong> ${escapeHtml(meta.part)}</div>`;
+      }
+      if (meta.desc) {
+        const descPreview = meta.desc.length > 150 ? meta.desc.substring(0, 150) + '...' : meta.desc;
+        bodyHTML += `<div class="confirm-info"><strong>📝 简介:</strong> ${escapeHtml(descPreview)}</div>`;
+      }
+      if (Array.isArray(meta.tags) && meta.tags.length > 0) {
+        const tagsText = meta.tags.slice(0, 5).join(', ') + (meta.tags.length > 5 ? '...' : '');
+        bodyHTML += `<div class="confirm-info"><strong>🏷️ 标签:</strong> ${escapeHtml(tagsText)}</div>`;
+      }
+      bodyHTML += `<div class="confirm-info"><strong>🌐 翻译:</strong> ${options.translate ? '是' : '否'}</div>`;
+      bodyHTML += '</div>';
+
+      // 字幕内容折叠区
+      if (options.subtitleText) {
+        bodyHTML += `
+          <div class="confirm-subtitle-section">
+            <div class="confirm-subtitle-toggle" id="subtitleToggle">
+              <span>📄 字幕内容预览 (${options.subtitleText.split('\\n').length} 行)</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </div>
+            <div class="confirm-subtitle-content" id="subtitleContent">
+              <textarea class="confirm-subtitle-textarea" readonly>${escapeHtml(options.subtitleText)}</textarea>
+            </div>
+          </div>
+        `;
+      }
+    } else {
+      // 普通网页
+      const urlPreview = options.url.length > 100 ? options.url.substring(0, 100) + '...' : options.url;
+      bodyHTML += '<div>';
+      bodyHTML += `<div class="confirm-info"><strong>🔗 URL:</strong> ${escapeHtml(urlPreview)}</div>`;
+      bodyHTML += `<div class="confirm-info"><strong>🌐 翻译:</strong> ${options.translate ? '是' : '否'}</div>`;
+      bodyHTML += '</div>';
+    }
+
+    confirmBodyEl.innerHTML = bodyHTML;
+
+    // 字幕折叠功能
+    const subtitleToggle = document.getElementById('subtitleToggle');
+    const subtitleContent = document.getElementById('subtitleContent');
+    if (subtitleToggle && subtitleContent) {
+      subtitleToggle.addEventListener('click', () => {
+        subtitleToggle.classList.toggle('open');
+        subtitleContent.classList.toggle('show');
+      });
+    }
+
+    // 显示对话框
+    confirmOverlayEl.classList.add('show');
+  });
+}
+
+// 关闭确认对话框
+function closeConfirmDialog(result) {
+  confirmOverlayEl.classList.remove('show');
+  if (confirmResolve) {
+    confirmResolve(result);
+    confirmResolve = null;
+  }
+}
+
+// HTML 转义函数
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 确认对话框按钮事件
+confirmCancelEl.addEventListener('click', () => {
+  closeConfirmDialog(false);
+});
+
+confirmOkEl.addEventListener('click', () => {
+  closeConfirmDialog(true);
+});
+
+// 点击遮罩层关闭
+confirmOverlayEl.addEventListener('click', (e) => {
+  if (e.target === confirmOverlayEl) {
+    closeConfirmDialog(false);
+  }
+});
 
 function isBilibiliVideoUrl(url) {
   return url.startsWith(BILIBILI_VIDEO_PREFIX);
@@ -55,30 +172,30 @@ function getBilibiliPageParam(url) {
   }
 }
 
-function buildBilibiliSourceUrl(url) {
+function buildBilibiliSourceUrl(url, page) {
   const { bvid, aid } = extractBilibiliId(url);
   if (!bvid && !aid) {
     return null;
   }
-  const page = getBilibiliPageParam(url);
+  const finalPage = Number.isFinite(page) && page > 1 ? page : getBilibiliPageParam(url);
   const baseUrl = bvid
     ? `https://www.bilibili.com/video/${bvid}`
     : `https://www.bilibili.com/video/av${aid}`;
-  if (page && page > 1) {
-    return `${baseUrl}?p=${page}`;
+  if (finalPage && finalPage > 1) {
+    return `${baseUrl}?p=${finalPage}`;
   }
   return baseUrl;
 }
 
-function buildBilibiliCacheKey(url, translateToChinese) {
+function buildBilibiliCacheKey(url, translateToChinese, page, cid) {
   const { bvid, aid } = extractBilibiliId(url);
   if (!bvid && !aid) {
     return null;
   }
-  const page = getBilibiliPageParam(url);
-  const pagePart = page ? `p${page}` : 'p1';
+  const pagePart = Number.isFinite(page) && page > 0 ? `p${page}` : 'p1';
+  const cidPart = cid ? `cid:${cid}` : 'cid:unknown';
   const translatePart = translateToChinese ? 'zh' : 'raw';
-  return `${bvid ? `bvid:${bvid}` : `aid:${aid}`}:${pagePart}:${translatePart}`;
+  return `${bvid ? `bvid:${bvid}` : `aid:${aid}`}:${pagePart}:${cidPart}:${translatePart}`;
 }
 
 async function getCachedBilibiliTaskId(cacheKey) {
@@ -114,35 +231,99 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
-async function getBilibiliSubtitleText(videoUrl) {
+async function getBilibiliPageInfoFromPage(tabId) {
+  if (!tabId || !chrome?.scripting?.executeScript) {
+    return null;
+  }
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const state = window.__INITIAL_STATE__;
+        if (!state || !state.videoData) {
+          return null;
+        }
+        const videoData = state.videoData;
+        const pages = Array.isArray(videoData.pages) ? videoData.pages : [];
+        const currentPage = Number(state.p) || 1;
+        const pageInfo = pages.find((page) => page.page === currentPage) || pages[0];
+        if (!pageInfo) {
+          return null;
+        }
+
+        // 提取视频元数据
+        const metadata = {
+          aid: state.aid || videoData.aid,
+          bvid: state.bvid || videoData.bvid,
+          cid: pageInfo.cid,
+          page: pageInfo.page,
+          part: pageInfo.part || '',
+          // 视频基本信息
+          title: videoData.title || '',
+          desc: videoData.desc || '',
+          // UP主信息
+          owner: videoData.owner ? {
+            name: videoData.owner.name || '',
+            mid: videoData.owner.mid || ''
+          } : null,
+          // 标签信息
+          tags: Array.isArray(videoData.tag)
+            ? videoData.tag.map(t => t.tag_name || t.name).filter(Boolean)
+            : [],
+          // 统计信息
+          stat: videoData.stat ? {
+            view: videoData.stat.view || 0,
+            like: videoData.stat.like || 0,
+            coin: videoData.stat.coin || 0,
+            favorite: videoData.stat.favorite || 0,
+            share: videoData.stat.share || 0
+          } : null,
+          // 发布时间
+          pubdate: videoData.pubdate || videoData.ctime || 0
+        };
+
+        return metadata;
+      }
+    });
+    return result || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function getBilibiliSubtitleText(videoUrl, tabId, injectedInfo) {
   const { bvid, aid } = extractBilibiliId(videoUrl);
   if (!bvid && !aid) {
     throw new Error('未识别到 B 站视频 ID');
   }
 
-  const pageParam = getBilibiliPageParam(videoUrl);
-  const pagelistUrl = bvid
-    ? `https://api.bilibili.com/x/player/pagelist?bvid=${bvid}`
-    : `https://api.bilibili.com/x/player/pagelist?aid=${aid}`;
-  const pagelist = await fetchJson(pagelistUrl, { credentials: 'include' });
-
-  if (pagelist.code !== 0 || !Array.isArray(pagelist.data) || pagelist.data.length === 0) {
-    throw new Error('未找到视频分P信息');
+  const pageInfoFromPage = injectedInfo || await getBilibiliPageInfoFromPage(tabId);
+  if (!pageInfoFromPage?.cid) {
+    throw new Error('无法获取页面分P信息，请刷新页面后重试');
   }
 
-  let pageInfo = pagelist.data[0];
-  if (pageParam) {
-    pageInfo = pagelist.data.find((item) => item.page === pageParam) || pageInfo;
+  const pageInfo = {
+    cid: pageInfoFromPage.cid,
+    page: pageInfoFromPage.page || 1,
+    part: pageInfoFromPage.part || ''
+  };
+  const resolvedBvid = pageInfoFromPage.bvid || bvid;
+  const resolvedAid = pageInfoFromPage.aid || aid;
+
+  if (!resolvedBvid && !resolvedAid) {
+    throw new Error('未识别到 B 站视频 ID');
   }
 
-  if (!pageInfo || !pageInfo.cid) {
-    throw new Error('无法获取视频 CID');
-  }
-
-  const playerUrl = bvid
-    ? `https://api.bilibili.com/x/player/v2?bvid=${bvid}&cid=${pageInfo.cid}`
-    : `https://api.bilibili.com/x/player/v2?aid=${aid}&cid=${pageInfo.cid}`;
+  const playerUrl = resolvedBvid
+    ? `https://api.bilibili.com/x/player/v2?bvid=${resolvedBvid}&cid=${pageInfo.cid}`
+    : `https://api.bilibili.com/x/player/v2?aid=${resolvedAid}&cid=${pageInfo.cid}`;
   const playerInfo = await fetchJson(playerUrl, { credentials: 'include' });
+
+  const playerCid = playerInfo?.data?.cid;
+  if (playerCid && `${playerCid}` !== `${pageInfo.cid}`) {
+    throw new Error('字幕与当前分P不匹配，请刷新页面后重试');
+  }
 
   const subtitleList = playerInfo?.data?.subtitle?.list || playerInfo?.data?.subtitle?.subtitles || [];
   if (!Array.isArray(subtitleList) || subtitleList.length === 0) {
@@ -173,8 +354,51 @@ async function getBilibiliSubtitleText(videoUrl) {
     throw new Error('字幕内容为空');
   }
 
-  const header = pageInfo.part ? `分P：${pageInfo.part}\n\n` : '';
-  return `${header}${lines.join('\n')}`;
+  // 返回元数据和字幕文本，用于确认对话框显示和最终提交
+  const subtitleText = lines.join('\n');
+  const metadata = pageInfoFromPage;
+
+  return {
+    metadata,
+    subtitleText,
+    // 构建包含完整元数据的文本用于提交
+    getFullText: () => {
+      let fullText = '';
+
+      // 添加视频标题
+      if (metadata.title) {
+        fullText += `# ${metadata.title}\n\n`;
+      }
+
+      // 添加分P信息（如果有）
+      if (metadata.part) {
+        fullText += `## 分P：${metadata.part}\n\n`;
+      }
+
+      // 添加UP主信息
+      if (metadata.owner?.name) {
+        fullText += `**UP主**: ${metadata.owner.name}\n`;
+      }
+
+      // 添加视频简介
+      if (metadata.desc) {
+        fullText += `\n**视频简介**:\n${metadata.desc}\n`;
+      }
+
+      // 添加标签
+      if (Array.isArray(metadata.tags) && metadata.tags.length > 0) {
+        fullText += `\n**标签**: ${metadata.tags.join(', ')}\n`;
+      }
+
+      // 添加分隔线
+      fullText += '\n---\n\n';
+
+      // 添加字幕内容
+      fullText += `**字幕内容**:\n\n${subtitleText}`;
+
+      return fullText;
+    }
+  };
 }
 
 async function createTextTask(serverUrl, text, translateToChinese, sourceUrl) {
@@ -206,6 +430,7 @@ async function init() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
       currentTabUrl = tab.url;
+      currentTabId = tab.id ?? null;
       currentUrlEl.textContent = currentTabUrl;
 
       // 检查是否是可分析的 URL
@@ -244,8 +469,17 @@ analyzeBtnEl.addEventListener('click', async () => {
 
   if (isBilibiliVideoUrl(currentTabUrl)) {
     analyzeBtnEl.disabled = true;
-    const cacheKey = buildBilibiliCacheKey(currentTabUrl, translate);
-    const sourceUrl = buildBilibiliSourceUrl(currentTabUrl);
+    const injectedInfo = await getBilibiliPageInfoFromPage(currentTabId);
+    if (!injectedInfo?.cid) {
+      setStatus('无法获取页面分P信息，请刷新页面后重试', 'error');
+      analyzeBtnEl.disabled = false;
+      return;
+    }
+
+    const cacheKey = buildBilibiliCacheKey(currentTabUrl, translate, injectedInfo.page, injectedInfo.cid);
+    const sourceUrl = buildBilibiliSourceUrl(currentTabUrl, injectedInfo.page);
+
+    // 检查缓存
     const cachedTaskId = await getCachedBilibiliTaskId(cacheKey);
     if (cachedTaskId) {
       setStatus('检测到已解析记录，正在打开...');
@@ -264,11 +498,28 @@ analyzeBtnEl.addEventListener('click', async () => {
 
     setStatus('检测到 B 站视频，正在提取字幕...');
     try {
-      const subtitleText = await getBilibiliSubtitleText(currentTabUrl);
-      setStatus('字幕提取完成，提交解析中...');
+      const subtitleData = await getBilibiliSubtitleText(currentTabUrl, currentTabId, injectedInfo);
+      analyzeBtnEl.disabled = false;
+
+      // 显示自定义确认对话框
+      const confirmed = await showConfirmDialog({
+        type: 'bilibili',
+        title: '确认分析 B 站视频',
+        metadata: subtitleData.metadata,
+        subtitleText: subtitleData.subtitleText,
+        translate
+      });
+
+      if (!confirmed) {
+        setStatus('已取消');
+        return;
+      }
+
+      analyzeBtnEl.disabled = true;
+      setStatus('提交解析中...');
       const taskId = await createTextTask(
         serverUrl,
-        `来源：Bilibili 字幕\n\n${subtitleText}`,
+        subtitleData.getFullText(),
         translate,
         sourceUrl
       );
@@ -281,6 +532,19 @@ analyzeBtnEl.addEventListener('click', async () => {
       setStatus(message, 'error');
       analyzeBtnEl.disabled = false;
     }
+    return;
+  }
+
+  // 普通网页的确认
+  const confirmed = await showConfirmDialog({
+    type: 'normal',
+    title: '确认分析网页',
+    url: currentTabUrl,
+    translate
+  });
+
+  if (!confirmed) {
+    setStatus('已取消');
     return;
   }
 
