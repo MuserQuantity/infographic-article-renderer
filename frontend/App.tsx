@@ -10,7 +10,8 @@ import {
   FileText,
   Sparkles,
   ArrowRight,
-  X
+  X,
+  Github
 } from 'lucide-react';
 
 // API base URL - 生产环境使用相对路径（通过 nginx 代理），开发环境使用环境变量
@@ -457,13 +458,24 @@ export default function App() {
           {/* 使用说明 */}
           <div className="mt-10 text-center text-stone-600 text-sm space-y-3">
             <p>支持文章链接和手动文本输入，系统会自动转换为信息图格式</p>
-            <a
-              href="/articles"
-              className="inline-flex items-center justify-center gap-2 text-stone-500 hover:text-stone-300 transition-colors"
-            >
-              <FileText className="w-4 h-4" />
-              浏览文章库
-            </a>
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+              <a
+                href="/articles"
+                className="inline-flex items-center justify-center gap-2 text-stone-500 hover:text-stone-300 transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                浏览文章库
+              </a>
+              <a
+                href="https://github.com/MuserQuantity/infographic-article-renderer"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 text-stone-500 hover:text-stone-300 transition-colors"
+              >
+                <Github className="w-4 h-4" />
+                Get Chrome Extension
+              </a>
+            </div>
           </div>
         </div>
       </div>

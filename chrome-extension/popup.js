@@ -16,6 +16,7 @@ const serverUrlEl = document.getElementById('serverUrl');
 const saveBtnEl = document.getElementById('saveBtn');
 const savedMsgEl = document.getElementById('savedMsg');
 const translateCheckEl = document.getElementById('translateCheck');
+const serverLinkBtnEl = document.getElementById('serverLinkBtn');
 
 let currentTabUrl = '';
 
@@ -294,6 +295,13 @@ articlesBtnEl.addEventListener('click', async () => {
   const serverUrl = (result.serverUrl || DEFAULT_SERVER_URL).replace(/\/$/, '');
   const targetUrl = `${serverUrl}/articles`;
   chrome.tabs.create({ url: targetUrl });
+  window.close();
+});
+
+serverLinkBtnEl.addEventListener('click', async () => {
+  const result = await chrome.storage.sync.get(['serverUrl']);
+  const serverUrl = (result.serverUrl || DEFAULT_SERVER_URL).replace(/\/$/, '');
+  chrome.tabs.create({ url: serverUrl });
   window.close();
 });
 

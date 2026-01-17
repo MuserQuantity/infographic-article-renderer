@@ -62,6 +62,30 @@
       fill: white;
     }
 
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: #a8a29e;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      color: #e7e5e4;
+      background: #292524;
+    }
+
+    .icon-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
     .title {
       font-size: 15px;
       font-weight: 700;
@@ -270,7 +294,13 @@
         <path d="M12 3l1.5 4.5H18l-3.5 2.5 1.5 4.5L12 12l-4 2.5 1.5-4.5L6 7.5h4.5L12 3z"/>
       </svg>
     </div>
-    <div class="title">Infographic Renderer</div>
+    <div class="title">Infographic Analyzer</div>
+    <button id="serverLinkBtn" class="icon-btn" aria-label="Open Server Home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+    </button>
   </div>
 
   <div class="current-url" id="currentUrl">加载中...</div>
