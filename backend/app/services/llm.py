@@ -163,7 +163,7 @@ ContentBlock 示例：
 1. 提取文章标题作为 title，副标题作为 subtitle
 2. 尽量提取作者、日期信息到 meta；不要编造，缺失则省略
 3. 根据内容逻辑划分为多个 sections，每个大的主题或章节应该是一个独立的 section
-4. 每个 section 建议 2-5 个内容块；段落 1-3 句；列表 3-6 项；时间线 3-6 项；统计/评分 2-4 项
+4. 为了尽可能完整还原内容：每个 section 建议 3-8 个内容块；段落 2-6 句；列表/时间线 5-12 项；统计/评分 3-6 项。内容很长时允许更多 sections 与内容块，宁可拆分也不要过度压缩
 5. 根据内容特点选择合适的 ContentBlock 类型；不确定时使用 paragraph
 6. 允许少量行内 Markdown（仅限文本字段）：**粗体**、[文本](https://example.com)
 7. 禁止任何其他 Markdown 语法或代码块：
@@ -173,6 +173,7 @@ ContentBlock 示例：
 8. 过滤掉广告、订阅提示、社交媒体引导等非正文内容
 9. 子标题处理：如果文章中有类似 "3.1 xxx"、"第一部分：xxx" 这样的子标题，应该作为新 section 的 title，或者用 highlight block 突出显示
 10. 如果内容包含 URL，优先使用 linkcard，或在文本中使用 [文本](url)
+11. 面向长篇采访/逐字稿，尽量覆盖全部话题与关键观点，保留关键细节、例子、数字、结论；如有提问者/回答者，优先用 quote/paragraph 标注说话人以保持问答脉络
 
 {language_instruction}
 
