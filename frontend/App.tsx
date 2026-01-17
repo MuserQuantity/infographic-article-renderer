@@ -473,7 +473,7 @@ export default function App() {
                 className="inline-flex items-center justify-center gap-2 text-stone-500 hover:text-stone-300 transition-colors"
               >
                 <Github className="w-4 h-4" />
-                Get Chrome Extension
+                获取Chrome插件
               </a>
             </div>
           </div>
