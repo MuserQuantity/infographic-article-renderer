@@ -12,6 +12,15 @@ import {
   DefinitionItem,
   RatingItem
 } from '../types';
+import { InfographicCard } from './InfographicCard';
+import {
+  stepsToInfographicSyntax,
+  timelineToInfographicSyntax,
+  progressToInfographicSyntax,
+  prosConsToInfographicSyntax,
+  statsToInfographicSyntax,
+  comparisonToInfographicSyntax,
+} from '../utils/infographicMapper';
 import {
   Quote,
   Info,
@@ -363,7 +372,7 @@ const ImageBlock = ({ src, alt, caption }: { src: string; alt: string; caption?:
   );
 };
 
-const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2 | 3 }) => {
+const LegacyStatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2 | 3 }) => {
   const gridCols = {
     1: 'grid-cols-1',
     2: 'grid-cols-1 md:grid-cols-2',
@@ -408,6 +417,29 @@ const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2
   );
 };
 
+const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2 | 3 }) => {
+  const [useLegacy, setUseLegacy] = React.useState(false);
+
+  if (useLegacy) {
+    return <LegacyStatsBlock items={items} columns={columns} />;
+  }
+
+  try {
+    const syntax = statsToInfographicSyntax(items, columns);
+    return (
+      <div className="mb-12">
+        <InfographicCard
+          syntax={syntax}
+          height={Math.max(300, Math.ceil(items.length / (columns || 3)) * 150)}
+          onError={() => setUseLegacy(true)}
+        />
+      </div>
+    );
+  } catch {
+    return <LegacyStatsBlock items={items} columns={columns} />;
+  }
+};
+
 const TagsBlock = ({ items }: { items: string[] }) => (
   <div className="flex flex-wrap gap-2.5 mb-12 pt-4 border-t border-stone-100">
     {items.map((tag, idx) => (
@@ -422,7 +454,7 @@ const TagsBlock = ({ items }: { items: string[] }) => (
   </div>
 );
 
-const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?: string }[] }) => (
+const LegacyTimelineBlock = ({ items }: { items: { title: string; time?: string; desc?: string }[] }) => (
   <div className="relative pl-2 mb-12">
     <div className="absolute left-[15px] top-2 bottom-2 w-px bg-stone-200" />
     <div className="space-y-10">
@@ -443,6 +475,29 @@ const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?
     </div>
   </div>
 );
+
+const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?: string }[] }) => {
+  const [useLegacy, setUseLegacy] = React.useState(false);
+
+  if (useLegacy) {
+    return <LegacyTimelineBlock items={items} />;
+  }
+
+  try {
+    const syntax = timelineToInfographicSyntax(items);
+    return (
+      <div className="mb-12">
+        <InfographicCard
+          syntax={syntax}
+          height={Math.max(350, items.length * 80)}
+          onError={() => setUseLegacy(true)}
+        />
+      </div>
+    );
+  } catch {
+    return <LegacyTimelineBlock items={items} />;
+  }
+};
 
 const comparisonLabelHeaders = new Set([
   '指标',
@@ -495,8 +550,7 @@ const normalizeComparison = (columns: string[], rows: ComparisonRow[]) => {
   return { columnCount, columns: normalizedColumns, rows: normalizedRows, labelHeader };
 };
 
-const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: ComparisonRow[] }) => {
-  // Normalize row lengths so grid stays aligned even with missing cells.
+const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: ComparisonRow[] }) => {
   const { columnCount, columns: safeColumns, rows: safeRows, labelHeader } = normalizeComparison(columns, rows);
 
   return (
@@ -530,6 +584,29 @@ const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Compariso
       </div>
     </div>
   );
+};
+
+const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: ComparisonRow[] }) => {
+  const [useLegacy, setUseLegacy] = React.useState(false);
+
+  if (useLegacy) {
+    return <LegacyComparisonBlock columns={columns} rows={rows} />;
+  }
+
+  try {
+    const syntax = comparisonToInfographicSyntax(columns, rows);
+    return (
+      <div className="mb-12">
+        <InfographicCard
+          syntax={syntax}
+          height={Math.max(400, (rows.length + 1) * 60)}
+          onError={() => setUseLegacy(true)}
+        />
+      </div>
+    );
+  } catch {
+    return <LegacyComparisonBlock columns={columns} rows={rows} />;
+  }
 };
 
 const normalizeTable = (headers: string[], rows: string[][]) => {
@@ -660,7 +737,7 @@ const AccordionBlock = ({ items }: { items: AccordionItem[] }) => {
   );
 };
 
-const StepsBlock = ({ items }: { items: StepItem[] }) => (
+const LegacyStepsBlock = ({ items }: { items: StepItem[] }) => (
   <div className="mb-12 space-y-6">
     {items.map((item, idx) => (
       <div key={idx} className="flex gap-5 group">
@@ -681,7 +758,30 @@ const StepsBlock = ({ items }: { items: StepItem[] }) => (
   </div>
 );
 
-const ProgressBlock = ({ items }: { items: ProgressItem[] }) => (
+const StepsBlock = ({ items }: { items: StepItem[] }) => {
+  const [useLegacy, setUseLegacy] = React.useState(false);
+
+  if (useLegacy) {
+    return <LegacyStepsBlock items={items} />;
+  }
+
+  try {
+    const syntax = stepsToInfographicSyntax(items);
+    return (
+      <div className="mb-12">
+        <InfographicCard
+          syntax={syntax}
+          height={Math.max(300, items.length * 100)}
+          onError={() => setUseLegacy(true)}
+        />
+      </div>
+    );
+  } catch {
+    return <LegacyStepsBlock items={items} />;
+  }
+};
+
+const LegacyProgressBlock = ({ items }: { items: ProgressItem[] }) => (
   <div className="mb-12 space-y-5">
     {items.map((item, idx) => {
       const max = item.max || 100;
@@ -703,6 +803,29 @@ const ProgressBlock = ({ items }: { items: ProgressItem[] }) => (
     })}
   </div>
 );
+
+const ProgressBlock = ({ items }: { items: ProgressItem[] }) => {
+  const [useLegacy, setUseLegacy] = React.useState(false);
+
+  if (useLegacy) {
+    return <LegacyProgressBlock items={items} />;
+  }
+
+  try {
+    const syntax = progressToInfographicSyntax(items);
+    return (
+      <div className="mb-12">
+        <InfographicCard
+          syntax={syntax}
+          height={Math.max(300, Math.ceil(items.length / 3) * 200)}
+          onError={() => setUseLegacy(true)}
+        />
+      </div>
+    );
+  } catch {
+    return <LegacyProgressBlock items={items} />;
+  }
+};
 
 const HighlightBlock = ({
   text,
@@ -749,7 +872,7 @@ const DefinitionBlock = ({ items, onAnalyzeLink }: { items: DefinitionItem[]; on
   </div>
 );
 
-const ProsConsBlock = ({
+const LegacyProsConsBlock = ({
   pros,
   cons,
   onAnalyzeLink,
@@ -789,6 +912,37 @@ const ProsConsBlock = ({
     </div>
   </div>
 );
+
+const ProsConsBlock = ({
+  pros,
+  cons,
+  onAnalyzeLink,
+}: {
+  pros: string[];
+  cons: string[];
+  onAnalyzeLink?: (url: string) => void;
+}) => {
+  const [useLegacy, setUseLegacy] = React.useState(false);
+
+  if (useLegacy) {
+    return <LegacyProsConsBlock pros={pros} cons={cons} onAnalyzeLink={onAnalyzeLink} />;
+  }
+
+  try {
+    const syntax = prosConsToInfographicSyntax(pros, cons);
+    return (
+      <div className="mb-12">
+        <InfographicCard
+          syntax={syntax}
+          height={Math.max(400, Math.max(pros.length, cons.length) * 60)}
+          onError={() => setUseLegacy(true)}
+        />
+      </div>
+    );
+  } catch {
+    return <LegacyProsConsBlock pros={pros} cons={cons} onAnalyzeLink={onAnalyzeLink} />;
+  }
+};
 
 const VideoBlock = ({ src, platform = 'custom', title }: { src: string; platform?: 'youtube' | 'bilibili' | 'custom'; title?: string }) => {
   const getEmbedUrl = () => {
@@ -917,6 +1071,12 @@ const RatingBlock = ({ items }: { items: RatingItem[] }) => {
   );
 };
 
+const InfographicBlock = ({ syntax, template, theme, height }: { syntax: string; template?: string; theme?: string; height?: number }) => (
+  <div className="mb-12">
+    <InfographicCard syntax={syntax} height={height || 400} />
+  </div>
+);
+
 // --- Main Block Switcher ---
 
 const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: string) => void }> = ({ block, onAnalyzeLink }) => {
@@ -965,6 +1125,8 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
       return <LinkCardBlock url={block.url} title={block.title} description={block.description} image={block.image} />;
     case 'rating':
       return <RatingBlock items={block.items} />;
+    case 'infographic':
+      return <InfographicBlock syntax={block.syntax} template={block.template} theme={block.theme} height={block.height} />;
     default:
       return null;
   }

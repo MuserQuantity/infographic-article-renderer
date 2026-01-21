@@ -20,7 +20,8 @@ export type ArticleContentType =
   | 'video'
   | 'divider'
   | 'linkcard'
-  | 'rating';
+  | 'rating'
+  | 'infographic';
 
 export interface BaseContent {
   type: ArticleContentType;
@@ -212,6 +213,14 @@ export interface RatingContent extends BaseContent {
   items: RatingItem[];
 }
 
+export interface InfographicContent extends BaseContent {
+  type: 'infographic';
+  syntax: string;
+  template?: string;
+  theme?: string;
+  height?: number;
+}
+
 export type ContentBlock =
   | TextContent
   | ListContent
@@ -234,7 +243,8 @@ export type ContentBlock =
   | VideoContent
   | DividerContent
   | LinkCardContent
-  | RatingContent;
+  | RatingContent
+  | InfographicContent;
 
 export interface ArticleSection {
   title: string;
