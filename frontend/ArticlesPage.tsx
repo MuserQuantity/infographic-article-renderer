@@ -150,29 +150,29 @@ export default function ArticlesPage() {
     const meta = item.meta;
     if (!meta?.author && !meta?.date && !meta?.readTime) {
       return (
-        <span className="inline-flex items-center gap-2 text-[var(--muted)]">
-          <BookOpen className="h-3.5 w-3.5 text-[color:var(--accent-strong)] opacity-70" />
-          暂无作者与阅读信息
+        <span className="inline-flex items-center gap-1.5 sm:gap-2 text-[var(--muted)]">
+          <BookOpen className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-[color:var(--accent-strong)] opacity-70" />
+          <span className="text-[10px] sm:text-xs">暂无信息</span>
         </span>
       );
     }
     return (
       <>
         {meta?.author && (
-          <span className="inline-flex items-center gap-2">
-            <User className="h-3.5 w-3.5 text-[color:var(--accent-strong)] opacity-70" />
-            {meta.author}
+          <span className="inline-flex items-center gap-1.5 sm:gap-2">
+            <User className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-[color:var(--accent-strong)] opacity-70" />
+            <span className="truncate max-w-[100px] sm:max-w-none">{meta.author}</span>
           </span>
         )}
         {meta?.date && (
-          <span className="inline-flex items-center gap-2">
-            <Calendar className="h-3.5 w-3.5 text-[color:var(--accent-strong)] opacity-70" />
+          <span className="inline-flex items-center gap-1.5 sm:gap-2">
+            <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-[color:var(--accent-strong)] opacity-70" />
             {meta.date}
           </span>
         )}
         {meta?.readTime && (
-          <span className="inline-flex items-center gap-2">
-            <Clock className="h-3.5 w-3.5 text-[color:var(--accent-strong)] opacity-70" />
+          <span className="inline-flex items-center gap-1.5 sm:gap-2">
+            <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-[color:var(--accent-strong)] opacity-70" />
             {meta.readTime}
           </span>
         )}
@@ -187,95 +187,95 @@ export default function ArticlesPage() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,_rgba(255,255,255,0.7)_0%,_transparent_55%),radial-gradient(circle_at_80%_0%,_rgba(255,247,237,0.8)_0%,_transparent_45%)]"></div>
 
       <main className="relative z-10">
-        <header className="w-full max-w-6xl mx-auto px-6 pt-14 pb-10 articles-fade">
-          <div className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
+        <header className="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-8 sm:pt-14 pb-6 sm:pb-10 articles-fade">
+          <div className="flex flex-col gap-6 sm:gap-10 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-3 text-xs tracking-[0.4em] uppercase text-[var(--muted)]">
-                <span className="h-px w-10 bg-[var(--accent)]/50"></span>
+              <div className="inline-flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs tracking-[0.3em] sm:tracking-[0.4em] uppercase text-[var(--muted)]">
+                <span className="h-px w-6 sm:w-10 bg-[var(--accent)]/50"></span>
                 Archive
               </div>
-              <h1 className="mt-5 text-4xl md:text-5xl font-[var(--font-serif)] text-[color:var(--ink)]">
+              <h1 className="mt-3 sm:mt-5 text-3xl sm:text-4xl md:text-5xl font-[var(--font-serif)] text-[color:var(--ink)]">
                 文章库
               </h1>
-              <p className="mt-4 max-w-xl text-base md:text-lg text-[var(--muted)]">
+              <p className="mt-3 sm:mt-4 max-w-xl text-sm sm:text-base md:text-lg text-[var(--muted)]">
                 最新生成的信息图文章会在这里按时间顺序排列，点击卡片即可进入完整阅读体验。
               </p>
-              <div className="mt-6 flex flex-wrap items-center gap-4">
+              <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-3 sm:gap-4">
                 <a
                   href="/"
-                  className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-amber-500/30"
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-amber-500/30"
                 >
-                  <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   生成新文章
                 </a>
                 <button
                   onClick={() => setRefreshTick((prev) => prev + 1)}
-                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--paper-deep)] bg-white/70 px-5 py-2.5 text-sm font-semibold text-[color:var(--ink)] shadow-sm transition-transform duration-200 hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--paper-deep)] bg-white/70 px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-[color:var(--ink)] shadow-sm transition-transform duration-200 hover:-translate-y-0.5"
                 >
-                  <RefreshCw className="h-4 w-4 text-[color:var(--accent-strong)]" />
+                  <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[color:var(--accent-strong)]" />
                   刷新列表
                 </button>
               </div>
             </div>
-            <div className="w-full max-w-sm rounded-3xl border border-[color:var(--paper-deep)] bg-[var(--card)] p-6 shadow-xl shadow-amber-500/10 backdrop-blur">
-              <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Overview</div>
-              <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+            <div className="w-full lg:max-w-sm rounded-2xl sm:rounded-3xl border border-[color:var(--paper-deep)] bg-[var(--card)] p-4 sm:p-6 shadow-xl shadow-amber-500/10 backdrop-blur">
+              <div className="text-[10px] sm:text-xs uppercase tracking-[0.25em] sm:tracking-[0.3em] text-[var(--muted)]">Overview</div>
+              <div className="mt-3 sm:mt-4 grid grid-cols-2 gap-3 sm:gap-4 text-sm">
                 <div>
-                  <div className="text-2xl font-semibold text-[color:var(--ink)]">{totalItems}</div>
-                  <div className="text-[var(--muted)]">累计文章</div>
+                  <div className="text-xl sm:text-2xl font-semibold text-[color:var(--ink)]">{totalItems}</div>
+                  <div className="text-xs sm:text-sm text-[var(--muted)]">累计文章</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-semibold text-[color:var(--ink)]">{page}/{totalPages}</div>
-                  <div className="text-[var(--muted)]">当前页码</div>
+                  <div className="text-xl sm:text-2xl font-semibold text-[color:var(--ink)]">{page}/{totalPages}</div>
+                  <div className="text-xs sm:text-sm text-[var(--muted)]">当前页码</div>
                 </div>
               </div>
             </div>
           </div>
         </header>
 
-        <section className="w-full max-w-6xl mx-auto px-6 pb-16">
+        <section className="w-full max-w-6xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
           {loading && (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div
                   key={`skeleton-${index}`}
-                  className="animate-pulse rounded-3xl border border-[color:var(--paper-deep)] bg-white/70 p-6 shadow-sm"
+                  className="animate-pulse rounded-2xl sm:rounded-3xl border border-[color:var(--paper-deep)] bg-white/70 p-4 sm:p-6 shadow-sm"
                 >
-                  <div className="h-4 w-24 rounded-full bg-stone-200"></div>
-                  <div className="mt-6 h-6 w-4/5 rounded bg-stone-200"></div>
-                  <div className="mt-3 h-4 w-full rounded bg-stone-200"></div>
-                  <div className="mt-2 h-4 w-5/6 rounded bg-stone-200"></div>
-                  <div className="mt-6 h-4 w-2/3 rounded bg-stone-200"></div>
+                  <div className="h-3 sm:h-4 w-20 sm:w-24 rounded-full bg-stone-200"></div>
+                  <div className="mt-4 sm:mt-6 h-5 sm:h-6 w-4/5 rounded bg-stone-200"></div>
+                  <div className="mt-2 sm:mt-3 h-3 sm:h-4 w-full rounded bg-stone-200"></div>
+                  <div className="mt-2 h-3 sm:h-4 w-5/6 rounded bg-stone-200"></div>
+                  <div className="mt-4 sm:mt-6 h-3 sm:h-4 w-2/3 rounded bg-stone-200"></div>
                 </div>
               ))}
             </div>
           )}
 
           {!loading && error && (
-            <div className="rounded-3xl border border-dashed border-amber-300 bg-white/80 p-10 text-center">
-              <p className="text-lg font-semibold text-[color:var(--ink)]">加载失败</p>
-              <p className="mt-2 text-sm text-[var(--muted)]">{error}</p>
+            <div className="rounded-2xl sm:rounded-3xl border border-dashed border-amber-300 bg-white/80 p-6 sm:p-10 text-center">
+              <p className="text-base sm:text-lg font-semibold text-[color:var(--ink)]">加载失败</p>
+              <p className="mt-2 text-xs sm:text-sm text-[var(--muted)]">{error}</p>
               <button
                 onClick={() => setRefreshTick((prev) => prev + 1)}
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-amber-500/20"
+                className="mt-4 sm:mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-amber-500/20"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 重试
               </button>
             </div>
           )}
 
           {!loading && !error && items.length === 0 && (
-            <div className="rounded-3xl border border-dashed border-[color:var(--paper-deep)] bg-white/80 p-10 text-center">
-              <p className="text-lg font-semibold text-[color:var(--ink)]">还没有生成任何文章</p>
-              <p className="mt-2 text-sm text-[var(--muted)]">
+            <div className="rounded-2xl sm:rounded-3xl border border-dashed border-[color:var(--paper-deep)] bg-white/80 p-6 sm:p-10 text-center">
+              <p className="text-base sm:text-lg font-semibold text-[color:var(--ink)]">还没有生成任何文章</p>
+              <p className="mt-2 text-xs sm:text-sm text-[var(--muted)]">
                 从一篇文章链接或一段文本开始，系统将自动生成信息图页面。
               </p>
               <a
                 href="/"
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-amber-500/20"
+                className="mt-4 sm:mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-amber-500/20"
               >
-                <Sparkles className="h-4 w-4" />
+                <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 生成第一篇
               </a>
             </div>
@@ -283,7 +283,7 @@ export default function ArticlesPage() {
 
           {!loading && !error && items.length > 0 && (
             <>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {items.map((item, index) => {
                   const rank = (page - 1) * PER_PAGE + index + 1;
                   const title = item.title?.trim()
@@ -298,36 +298,36 @@ export default function ArticlesPage() {
                     <a
                       key={item.id}
                       href={`/?id=${item.id}`}
-                      className="group relative overflow-hidden rounded-3xl border border-[color:var(--paper-deep)] bg-[var(--card)] p-6 shadow-lg shadow-amber-500/5 transition-transform duration-300 hover:-translate-y-1 hover:shadow-amber-500/20 articles-rise"
+                      className="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[color:var(--paper-deep)] bg-[var(--card)] p-4 sm:p-6 shadow-lg shadow-amber-500/5 transition-transform duration-300 hover:-translate-y-1 hover:shadow-amber-500/20 articles-rise"
                       style={{ animationDelay: `${index * 90}ms` }}
                     >
-                      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[radial-gradient(circle_at_center,_var(--accent)_0%,_transparent_70%)] opacity-20"></div>
-                      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                      <div className="absolute -right-6 -top-6 h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-[radial-gradient(circle_at_center,_var(--accent)_0%,_transparent_70%)] opacity-20"></div>
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs font-semibold uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[var(--muted)]">
                         <span>#{rank.toString().padStart(2, '0')}</span>
-                        <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-[10px] tracking-[0.15em] text-[color:var(--accent-strong)]">
+                        <span className="rounded-full bg-[var(--accent-soft)] px-2 sm:px-3 py-0.5 sm:py-1 text-[9px] sm:text-[10px] tracking-[0.12em] sm:tracking-[0.15em] text-[color:var(--accent-strong)]">
                           {sourceLabel}
                         </span>
                       </div>
-                      <h3 className="mt-6 text-xl font-[var(--font-serif)] text-[color:var(--ink)] transition-colors duration-200 group-hover:text-[color:var(--accent-strong)]">
+                      <h3 className="mt-4 sm:mt-6 text-lg sm:text-xl font-[var(--font-serif)] text-[color:var(--ink)] transition-colors duration-200 group-hover:text-[color:var(--accent-strong)] line-clamp-2">
                         {title}
                       </h3>
-                      <p className="mt-3 text-sm text-[var(--muted)] [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical] overflow-hidden">
+                      <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-[var(--muted)] [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical] overflow-hidden">
                         {subtitle}
                       </p>
-                      <p className="mt-4 text-xs text-[var(--muted)] opacity-80 [display:-webkit-box] [-webkit-line-clamp:1] [-webkit-box-orient:vertical] overflow-hidden">
+                      <p className="mt-3 sm:mt-4 text-[10px] sm:text-xs text-[var(--muted)] opacity-80 [display:-webkit-box] [-webkit-line-clamp:1] [-webkit-box-orient:vertical] overflow-hidden">
                         {sourceDetail}
                       </p>
-                      <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+                      <div className="mt-4 sm:mt-5 flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-[var(--muted)]">
                         {renderMeta(item)}
                       </div>
-                      <div className="mt-6 flex items-center justify-between text-xs text-[var(--muted)]">
-                        <span className="inline-flex items-center gap-2">
-                          <Calendar className="h-3.5 w-3.5 text-[color:var(--accent-strong)] opacity-70" />
-                          {createdLabel}
+                      <div className="mt-4 sm:mt-6 flex items-center justify-between text-[10px] sm:text-xs text-[var(--muted)]">
+                        <span className="inline-flex items-center gap-1.5 sm:gap-2">
+                          <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-[color:var(--accent-strong)] opacity-70" />
+                          <span className="truncate">{createdLabel}</span>
                         </span>
-                        <span className="inline-flex items-center gap-2 text-[color:var(--accent-strong)] font-semibold">
+                        <span className="inline-flex items-center gap-1.5 sm:gap-2 text-[color:var(--accent-strong)] font-semibold flex-shrink-0">
                           浏览
-                          <ArrowUpRight className="h-4 w-4" />
+                          <ArrowUpRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </span>
                       </div>
                     </a>
@@ -336,25 +336,25 @@ export default function ArticlesPage() {
               </div>
 
               {totalPages > 1 && (
-                <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
+                <div className="mt-8 sm:mt-12 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
                   <button
                     onClick={() => handlePageChange(page - 1)}
                     disabled={page <= 1}
-                    className="inline-flex items-center gap-2 rounded-full border border-[color:var(--paper-deep)] bg-white/80 px-4 py-2 text-sm font-semibold text-[color:var(--ink)] transition-opacity disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-[color:var(--paper-deep)] bg-white/80 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-[color:var(--ink)] transition-opacity disabled:opacity-40"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    上一页
+                    <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline">上一页</span>
                   </button>
                   {pageItems.map((item, index) => (
                     item === 'dots' ? (
-                      <span key={`dots-${index}`} className="px-2 text-sm text-[var(--muted)]">
+                      <span key={`dots-${index}`} className="px-1 sm:px-2 text-xs sm:text-sm text-[var(--muted)]">
                         ···
                       </span>
                     ) : (
                       <button
                         key={`page-${item}`}
                         onClick={() => handlePageChange(item)}
-                        className={`h-10 w-10 rounded-full text-sm font-semibold transition-all ${
+                        className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full text-xs sm:text-sm font-semibold transition-all ${
                           item === page
                             ? 'bg-[var(--accent)] text-white shadow-lg shadow-amber-500/30'
                             : 'border border-[color:var(--paper-deep)] bg-white/70 text-[color:var(--ink)] hover:-translate-y-0.5'
@@ -367,10 +367,10 @@ export default function ArticlesPage() {
                   <button
                     onClick={() => handlePageChange(page + 1)}
                     disabled={page >= totalPages}
-                    className="inline-flex items-center gap-2 rounded-full border border-[color:var(--paper-deep)] bg-white/80 px-4 py-2 text-sm font-semibold text-[color:var(--ink)] transition-opacity disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-[color:var(--paper-deep)] bg-white/80 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-[color:var(--ink)] transition-opacity disabled:opacity-40"
                   >
-                    下一页
-                    <ChevronRight className="h-4 w-4" />
+                    <span className="hidden xs:inline">下一页</span>
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </button>
                 </div>
               )}

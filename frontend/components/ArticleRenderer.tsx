@@ -164,7 +164,7 @@ const SmartLink = ({ href, children, onAnalyze }: { href: string; children: Reac
 };
 
 const ParagraphBlock = ({ text, onAnalyzeLink }: { text: string; onAnalyzeLink?: (url: string) => void }) => (
-  <p className="text-stone-800 leading-8 md:leading-9 mb-8 text-base md:text-lg tracking-normal text-left font-normal antialiased">
+  <p className="text-stone-800 leading-7 sm:leading-8 md:leading-9 mb-6 sm:mb-8 text-sm sm:text-base md:text-lg tracking-normal text-left font-normal antialiased">
     {parseInlineMarkdown(text, onAnalyzeLink)}
   </p>
 );
@@ -179,15 +179,15 @@ const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: st
     .trim();
 
   return (
-    <div className="relative mb-12 mt-10">
-      <div className="border-l-2 border-amber-500 pl-8 py-2 pr-4">
-        <p className="text-xl md:text-3xl font-serif text-stone-900 mb-6 leading-relaxed italic">
+    <div className="relative mb-8 sm:mb-12 mt-6 sm:mt-10">
+      <div className="border-l-2 border-amber-500 pl-4 sm:pl-8 py-2 pr-2 sm:pr-4">
+        <p className="text-lg sm:text-xl md:text-3xl font-serif text-stone-900 mb-4 sm:mb-6 leading-relaxed italic">
           "{parseInlineMarkdown(cleanText, onAnalyzeLink)}"
         </p>
       {author && (
-        <div className="flex items-center justify-end gap-4">
-          <div className="h-px w-12 bg-stone-300"></div>
-          <footer className="text-sm font-bold text-stone-500 uppercase tracking-widest">
+        <div className="flex items-center justify-end gap-3 sm:gap-4">
+          <div className="h-px w-8 sm:w-12 bg-stone-300"></div>
+          <footer className="text-xs sm:text-sm font-bold text-stone-500 uppercase tracking-wider sm:tracking-widest">
             {author}
           </footer>
         </div>
@@ -222,11 +222,11 @@ const CalloutBlock = ({
   };
 
   return (
-    <div className={`flex items-start gap-4 p-6 rounded-xl border ${styles[variant]} mb-8`}>
-      <Icon className={`w-6 h-6 flex-shrink-0 mt-0.5 ${iconColors[variant]}`} />
+    <div className={`flex items-start gap-3 sm:gap-4 p-4 sm:p-6 rounded-lg sm:rounded-xl border ${styles[variant]} mb-6 sm:mb-8`}>
+      <Icon className={`w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0 mt-0.5 ${iconColors[variant]}`} />
       <div className="flex-1">
-        {title && <h4 className="font-bold mb-1 text-base md:text-lg">{title}</h4>}
-        <p className="opacity-90 leading-relaxed text-sm md:text-base">{parseInlineMarkdown(text, onAnalyzeLink)}</p>
+        {title && <h4 className="font-bold mb-1 text-sm sm:text-base md:text-lg">{title}</h4>}
+        <p className="opacity-90 leading-relaxed text-xs sm:text-sm md:text-base">{parseInlineMarkdown(text, onAnalyzeLink)}</p>
       </div>
     </div>
   );
@@ -261,27 +261,27 @@ const ListBlock = ({
   style?: 'bullet' | 'check' | 'number';
   onAnalyzeLink?: (url: string) => void;
 }) => (
-  <div className="mb-10 pl-2">
-    {title && <h4 className="font-bold text-stone-900 mb-6 text-base md:text-lg flex items-center gap-2 border-b border-stone-100 pb-2">
+  <div className="mb-8 sm:mb-10 pl-1 sm:pl-2">
+    {title && <h4 className="font-bold text-stone-900 mb-4 sm:mb-6 text-sm sm:text-base md:text-lg flex items-center gap-2 border-b border-stone-100 pb-2">
       {title}
     </h4>}
-    <ul className="space-y-4">
+    <ul className="space-y-3 sm:space-y-4">
       {items.map((item, idx) => {
         const safeItem = extractItemText(item);
         const content = parseInlineMarkdown(safeItem, onAnalyzeLink);
 
         return (
-          <li key={idx} className="flex gap-4 items-start group">
+          <li key={idx} className="flex gap-3 sm:gap-4 items-start group">
             <span className="flex-shrink-0 mt-1.5">
-              {style === 'check' && <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-              {style === 'bullet' && <div className="w-2 h-2 rounded-full bg-stone-400 mt-2" />}
+              {style === 'check' && <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />}
+              {style === 'bullet' && <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-stone-400 mt-2" />}
               {style === 'number' && (
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-stone-100 text-stone-600 text-xs font-bold font-mono">
+                <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-stone-100 text-stone-600 text-[10px] sm:text-xs font-bold font-mono">
                   {idx + 1}
                 </span>
               )}
             </span>
-            <span className="text-stone-700 text-base md:text-lg leading-relaxed border-b border-stone-100 pb-4 w-full group-last:border-0">{content}</span>
+            <span className="text-stone-700 text-sm sm:text-base md:text-lg leading-relaxed border-b border-stone-100 pb-3 sm:pb-4 w-full group-last:border-0">{content}</span>
           </li>
         );
       })}
@@ -297,16 +297,16 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
   };
 
   return (
-    <div className={`grid ${gridCols[columns]} gap-6 mb-12`}>
+    <div className={`grid ${gridCols[columns]} gap-4 sm:gap-6 mb-10 sm:mb-12`}>
       {items.map((item, idx) => (
-        <div key={idx} className="bg-white p-8 rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-stone-200/40 group border border-stone-100 hover:border-stone-200 hover:-translate-y-1">
-          <div className="w-12 h-12 rounded-xl bg-white text-stone-800 flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
-             <LayoutGrid className="w-6 h-6" />
+        <div key={idx} className="bg-white p-5 sm:p-8 rounded-lg sm:rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-stone-200/40 group border border-stone-100 hover:border-stone-200 hover:-translate-y-1">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-white text-stone-800 flex items-center justify-center mb-4 sm:mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
+             <LayoutGrid className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <h4 className="font-bold text-stone-800 mb-3 text-lg md:text-xl">
+          <h4 className="font-bold text-stone-800 mb-2 sm:mb-3 text-base sm:text-lg md:text-xl">
             {item.title}
           </h4>
-          <p className="text-stone-600 leading-relaxed text-sm md:text-base">{item.description}</p>
+          <p className="text-stone-600 leading-relaxed text-xs sm:text-sm md:text-base">{item.description}</p>
         </div>
       ))}
     </div>
@@ -500,26 +500,26 @@ const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Compariso
   const { columnCount, columns: safeColumns, rows: safeRows, labelHeader } = normalizeComparison(columns, rows);
 
   return (
-    <div className="mb-14 rounded-xl border border-stone-200 bg-white">
+    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white">
       <div className="overflow-x-auto">
-        <div className="grid" style={{ gridTemplateColumns: `150px repeat(${columnCount}, minmax(120px, 1fr))`, minWidth: Math.max((columnCount + 1) * 130, 400) }}>
-          <div className="bg-stone-50 px-6 py-4 text-xs font-bold uppercase text-stone-400 flex items-center whitespace-nowrap">
+        <div className="grid" style={{ gridTemplateColumns: `120px repeat(${columnCount}, minmax(100px, 1fr))`, minWidth: Math.max((columnCount + 1) * 110, 350) }}>
+          <div className="bg-stone-50 px-3 py-3 sm:px-6 sm:py-4 text-[10px] sm:text-xs font-bold uppercase text-stone-400 flex items-center whitespace-nowrap">
             {labelHeader}
           </div>
           {safeColumns.map((col, idx) => (
-            <div key={idx} className={`bg-stone-50 px-6 py-4 text-sm font-bold text-stone-800 border-l border-stone-200 text-center ${idx === 0 ? 'bg-stone-100/50' : ''}`}>
+            <div key={idx} className={`bg-stone-50 px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-800 border-l border-stone-200 text-center ${idx === 0 ? 'bg-stone-100/50' : ''}`}>
               {col}
             </div>
           ))}
           {safeRows.map((row, idx) => (
             <React.Fragment key={idx}>
-              <div className="px-6 py-4 text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-nowrap">
+              <div className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-nowrap">
                 {row.label}
               </div>
               {row.values.map((val, vIdx) => (
                 <div
                   key={vIdx}
-                  className={`px-6 py-4 text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
+                  className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
                 >
                   {val}
                 </div>
@@ -553,13 +553,13 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
   const { columnCount, headers: safeHeaders, rows: safeRows } = normalizeTable(headers, rows);
 
   return (
-    <div className="mb-14 rounded-xl border border-stone-200 bg-white shadow-sm">
+    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-stone-200" style={{ minWidth: Math.max(columnCount * 150, 500) }}>
+        <table className="w-full divide-y divide-stone-200" style={{ minWidth: Math.max(columnCount * 120, 400) }}>
           <thead>
             <tr className="bg-stone-50">
               {safeHeaders.map((h, idx) => (
-                <th key={idx} className="px-6 py-4 text-left text-xs font-bold text-stone-500 uppercase tracking-wider first:pl-8 whitespace-nowrap min-w-[120px]">
+                <th key={idx} className="px-3 py-3 sm:px-6 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-stone-500 uppercase tracking-wider first:pl-4 sm:first:pl-8 whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
                   {h}
                 </th>
               ))}
@@ -569,7 +569,7 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
             {safeRows.map((row, idx) => (
               <tr key={idx} className="bg-white hover:bg-stone-50/50 transition-colors">
                 {row.map((cell, cIdx) => (
-                  <td key={cIdx} className="px-6 py-4 text-sm text-stone-700 leading-relaxed first:pl-8 first:font-medium min-w-[120px]">
+                  <td key={cIdx} className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-700 leading-relaxed first:pl-4 sm:first:pl-8 first:font-medium min-w-[100px] sm:min-w-[120px]">
                     {cell}
                   </td>
                 ))}
@@ -592,36 +592,36 @@ const CodeBlock = ({ code, language, title }: { code: string; language?: string;
   };
 
   return (
-    <div className="mb-10 rounded-xl overflow-hidden border border-stone-200 bg-stone-900 shadow-lg">
-      <div className="flex items-center justify-between px-4 py-3 bg-stone-800 border-b border-stone-700">
-        <div className="flex items-center gap-3">
-          <Code className="w-4 h-4 text-stone-400" />
-          {title && <span className="text-sm font-medium text-stone-300">{title}</span>}
+    <div className="mb-8 sm:mb-10 rounded-lg sm:rounded-xl overflow-hidden border border-stone-200 bg-stone-900 shadow-lg">
+      <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 bg-stone-800 border-b border-stone-700">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <Code className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400 flex-shrink-0" />
+          {title && <span className="text-xs sm:text-sm font-medium text-stone-300 truncate">{title}</span>}
           {language && (
-            <span className="px-2 py-0.5 rounded text-xs font-mono bg-stone-700 text-stone-300">
+            <span className="px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs font-mono bg-stone-700 text-stone-300 flex-shrink-0">
               {language}
             </span>
           )}
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium text-stone-400 hover:text-stone-200 hover:bg-stone-700 transition-colors"
+          className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded text-[10px] sm:text-xs font-medium text-stone-400 hover:text-stone-200 hover:bg-stone-700 transition-colors flex-shrink-0"
         >
           {copied ? (
             <>
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-400">已复制</span>
+              <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
+              <span className="hidden xs:inline text-emerald-400">已复制</span>
             </>
           ) : (
             <>
-              <Copy className="w-3.5 h-3.5" />
-              <span>复制</span>
+              <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden xs:inline">复制</span>
             </>
           )}
         </button>
       </div>
-      <div className="p-4 overflow-x-auto">
-        <pre className="text-sm font-mono text-stone-100 leading-relaxed whitespace-pre-wrap break-words">
+      <div className="p-3 sm:p-4 overflow-x-auto">
+        <pre className="text-xs sm:text-sm font-mono text-stone-100 leading-relaxed whitespace-pre-wrap break-words">
           <code>{code}</code>
         </pre>
       </div>
@@ -973,12 +973,12 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
 // --- Section Renderer ---
 
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
-  <div className="mb-16 md:mb-20 last:mb-0 relative">
-    <div className="flex items-baseline gap-4 md:gap-8 mb-12 md:mb-16 border-b border-stone-200 pb-6">
-      <div className="text-4xl md:text-5xl font-serif font-black text-stone-100 select-none">
+  <div className="mb-12 sm:mb-16 md:mb-20 last:mb-0 relative">
+    <div className="flex items-baseline gap-3 sm:gap-4 md:gap-8 mb-8 sm:mb-12 md:mb-16 border-b border-stone-200 pb-4 sm:pb-6">
+      <div className="text-3xl sm:text-4xl md:text-5xl font-serif font-black text-stone-100 select-none">
         {String(index + 1).padStart(2, '0')}
       </div>
-      <h2 className="text-2xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight flex-1">
+      <h2 className="text-xl sm:text-2xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight flex-1">
         {section.title}
       </h2>
     </div>
@@ -1001,42 +1001,42 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
   return (
     <div className="max-w-4xl mx-auto bg-white min-h-screen shadow-xl shadow-stone-900/5 overflow-hidden rounded-none md:rounded-3xl ring-1 ring-stone-900/5 transition-all">
       {/* Header */}
-      <header className="bg-stone-950 text-white px-8 py-16 md:px-24 md:py-32 relative overflow-hidden">
+      <header className="bg-stone-950 text-white px-4 py-10 sm:px-8 sm:py-16 md:px-24 md:py-32 relative overflow-hidden">
         {/* Subtle noise texture or pattern could go here */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
 
         <div className="relative z-10 max-w-3xl mx-auto text-center md:text-left">
-          <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-stone-400 uppercase tracking-widest mb-8 justify-center md:justify-start">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs sm:text-sm font-medium text-stone-400 uppercase tracking-wider sm:tracking-widest mb-6 sm:mb-8 justify-center md:justify-start">
             {data.meta?.date && (
-              <span className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> {data.meta.date}
+              <span className="flex items-center gap-1.5 sm:gap-2">
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {data.meta.date}
               </span>
             )}
             {data.meta?.readTime && (
-              <span className="flex items-center gap-2">
-                <Clock className="w-4 h-4" /> {data.meta.readTime}
+              <span className="flex items-center gap-1.5 sm:gap-2">
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {data.meta.readTime}
               </span>
             )}
           </div>
 
-          <h1 className="text-4xl md:text-7xl font-serif font-black mb-8 md:mb-10 leading-tight text-stone-50">
+          <h1 className="text-3xl sm:text-4xl md:text-7xl font-serif font-black mb-6 sm:mb-8 md:mb-10 leading-tight text-stone-50">
             {data.title}
           </h1>
 
           {data.subtitle && (
-            <p className="text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-4 md:pl-6 mx-auto md:mx-0 text-left">
+            <p className="text-base sm:text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-3 sm:pl-4 md:pl-6 mx-auto md:mx-0 text-left">
               {data.subtitle}
             </p>
           )}
 
           {data.meta?.author && (
-            <div className="mt-16 flex items-center justify-center md:justify-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-stone-700 flex items-center justify-center text-stone-300">
-                  <User className="w-5 h-5" />
+            <div className="mt-10 sm:mt-16 flex items-center justify-center md:justify-start gap-3 sm:gap-4">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-700 flex items-center justify-center text-stone-300">
+                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="text-left">
-                <p className="text-xs text-stone-400 uppercase tracking-widest font-bold">Written by</p>
-                <p className="font-bold text-white">{data.meta.author}</p>
+                <p className="text-[10px] sm:text-xs text-stone-400 uppercase tracking-wider sm:tracking-widest font-bold">Written by</p>
+                <p className="text-sm sm:text-base font-bold text-white">{data.meta.author}</p>
               </div>
             </div>
           )}
@@ -1044,14 +1044,14 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
       </header>
 
       {/* Content Body */}
-      <main className="px-6 py-12 md:px-20 md:py-24 bg-white">
+      <main className="px-4 py-8 sm:px-6 sm:py-12 md:px-20 md:py-24 bg-white">
         {data.sections.map((section, idx) => (
           <SectionRenderer key={idx} section={section} index={idx} onAnalyzeLink={onAnalyzeLink} />
         ))}
 
-        <footer className="mt-32 pt-12 border-t border-stone-100 text-center">
-          <p className="text-stone-400 text-sm font-medium flex items-center justify-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-500" />
+        <footer className="mt-20 sm:mt-32 pt-8 sm:pt-12 border-t border-stone-100 text-center">
+          <p className="text-stone-400 text-xs sm:text-sm font-medium flex items-center justify-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
             Generated by Infographic Renderer • {new Date().getFullYear()}
           </p>
         </footer>

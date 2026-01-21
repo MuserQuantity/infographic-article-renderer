@@ -67,3 +67,59 @@ body {
     animation: none;
   }
 }
+
+/* 移动端优化 */
+@media (max-width: 640px) {
+  /* 优化触摸目标大小 */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 优化字体渲染 */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 优化点击反馈 */
+  button:active, a:active {
+    opacity: 0.7;
+  }
+
+  /* 防止双击缩放 */
+  * {
+    touch-action: manipulation;
+  }
+
+  /* 优化输入框在移动端的显示 */
+  input, textarea, select {
+    font-size: 16px; /* 防止 iOS 自动放大 */
+  }
+}
+
+/* 针对小屏幕的额外优化 */
+@media (max-width: 375px) {
+  /* 进一步减小间距 */
+  .articles-theme {
+    --spacing-scale: 0.85;
+  }
+}
+
+/* 平板设备优化 */
+@media (min-width: 641px) and (max-width: 1024px) {
+  /* 优化平板阅读体验 */
+  body {
+    font-size: 17px;
+  }
+}
+
+/* 横屏模式优化 */
+@media (max-width: 896px) and (orientation: landscape) {
+  /* 减小垂直间距 */
+  header {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+}

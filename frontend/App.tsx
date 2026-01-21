@@ -356,24 +356,24 @@ export default function App() {
   // 输入界面
   if (showInput && !loading) {
     return (
-      <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-xl">
           {/* Logo/Title */}
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-6 shadow-lg shadow-indigo-500/20">
-              <Sparkles className="w-8 h-8 text-white" />
+          <div className="text-center mb-8 sm:mb-10">
+            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-5 sm:mb-6 shadow-lg shadow-indigo-500/20">
+              <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-3">Infographic Renderer</h1>
-            <p className="text-stone-400">输入文章链接或粘贴文本，生成精美信息图</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3">Infographic Renderer</h1>
+            <p className="text-sm sm:text-base text-stone-400">输入文章链接或粘贴文本，生成精美信息图</p>
           </div>
 
           {/* 输入表单 */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 p-1 bg-stone-900 border border-stone-800 rounded-xl">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-2 gap-2 p-1 bg-stone-900 border border-stone-800 rounded-lg sm:rounded-xl">
               <button
                 type="button"
                 onClick={() => setInputMode('url')}
-                className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                   inputMode === 'url'
                     ? 'bg-stone-800 text-white shadow'
                     : 'text-stone-400 hover:text-stone-200'
@@ -384,7 +384,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setInputMode('text')}
-                className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                   inputMode === 'text'
                     ? 'bg-stone-800 text-white shadow'
                     : 'text-stone-400 hover:text-stone-200'
@@ -396,28 +396,28 @@ export default function App() {
 
             {inputMode === 'url' ? (
               <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-500">
-                  <Link className="w-5 h-5" />
+                <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-stone-500">
+                  <Link className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <input
                   type="url"
                   value={inputUrl}
                   onChange={(e) => setInputUrl(e.target.value)}
                   placeholder="https://example.com/article"
-                  className="w-full bg-stone-900 border border-stone-800 rounded-xl pl-12 pr-4 py-4 text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  className="w-full bg-stone-900 border border-stone-800 rounded-lg sm:rounded-xl pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 text-sm sm:text-base text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                   required
                 />
               </div>
             ) : (
               <div className="relative">
-                <div className="absolute left-4 top-4 text-stone-500">
-                  <FileText className="w-5 h-5" />
+                <div className="absolute left-3 sm:left-4 top-3 sm:top-4 text-stone-500">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder="粘贴你的文章内容或草稿..."
-                  className="w-full bg-stone-900 border border-stone-800 rounded-xl pl-12 pr-4 py-4 text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all min-h-[180px] resize-y"
+                  className="w-full bg-stone-900 border border-stone-800 rounded-lg sm:rounded-xl pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 text-sm sm:text-base text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all min-h-[150px] sm:min-h-[180px] resize-y"
                   required
                 />
               </div>
@@ -448,31 +448,31 @@ export default function App() {
             <button
               type="submit"
               disabled={inputMode === 'url' ? !inputUrl.trim() : !inputText.trim()}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:from-stone-700 disabled:to-stone-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 disabled:shadow-none"
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:from-stone-700 disabled:to-stone-700 disabled:cursor-not-allowed text-white font-semibold py-3 sm:py-4 px-5 sm:px-6 rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 disabled:shadow-none text-sm sm:text-base"
             >
               生成信息图
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </form>
 
           {/* 使用说明 */}
-          <div className="mt-10 text-center text-stone-600 text-sm space-y-3">
+          <div className="mt-8 sm:mt-10 text-center text-stone-600 text-xs sm:text-sm space-y-2 sm:space-y-3">
             <p>支持文章链接和手动文本输入，系统会自动转换为信息图格式</p>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 sm:gap-x-6 gap-y-2">
               <a
                 href="/articles"
-                className="inline-flex items-center justify-center gap-2 text-stone-500 hover:text-stone-300 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 text-stone-500 hover:text-stone-300 transition-colors"
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 浏览文章库
               </a>
               <a
                 href="https://github.com/MuserQuantity/infographic-article-renderer"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 text-stone-500 hover:text-stone-300 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 text-stone-500 hover:text-stone-300 transition-colors"
               >
-                <Github className="w-4 h-4" />
+                <Github className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 获取Chrome插件
               </a>
             </div>
@@ -552,28 +552,28 @@ export default function App() {
   return (
     <div className="min-h-screen bg-stone-950 font-sans">
       {/* 顶部工具栏 */}
-      <div className="fixed top-4 right-4 z-50 flex gap-2">
+      <div className="fixed top-2 sm:top-4 right-2 sm:right-4 z-50 flex flex-wrap gap-1.5 sm:gap-2 max-w-[calc(100vw-1rem)]">
         <button
           onClick={handleBack}
-          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium"
+          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium"
         >
           新文章
         </button>
         <a
           href="/articles"
-          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
+          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 sm:gap-2"
         >
-          <FileText className="w-4 h-4" />
-          文章库
+          <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span className="hidden xs:inline">文章库</span>
         </a>
         {taskId && (
           <button
             onClick={handleCopyShareLink}
-            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 sm:gap-2"
             title="复制可访问链接"
           >
-            <Link className="w-4 h-4" />
-            {shareCopied ? '已复制' : '分享链接'}
+            <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">{shareCopied ? '已复制' : '分享链接'}</span>
           </button>
         )}
         {articleUrl && (
@@ -581,40 +581,40 @@ export default function App() {
             href={articleUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl shadow-lg transition-colors text-sm font-medium inline-flex items-center gap-2"
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 sm:gap-2"
             title="查看原文"
           >
-            <ExternalLink className="w-4 h-4" />
-            原文
+            <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden xs:inline">原文</span>
           </a>
         )}
         {sourceType === 'url' && articleUrl && (
           <button
             onClick={handleRefresh}
-            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-2 rounded-xl shadow-lg transition-colors"
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-colors"
             title="强制刷新"
           >
-            <RefreshCw className="w-5 h-5" />
+            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         )}
         {sourceType === 'text' && (
           <button
             onClick={handleRefresh}
-            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-2 rounded-xl shadow-lg transition-colors"
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-1.5 sm:p-2 rounded-lg sm:rounded-xl shadow-lg transition-colors"
             title="重新生成"
           >
-            <RefreshCw className="w-5 h-5" />
+            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         )}
       </div>
 
       {/* 主内容区 */}
-      <div className="w-full min-h-screen scroll-smooth p-4 md:p-8 lg:p-12 flex flex-col items-center">
+      <div className="w-full min-h-screen scroll-smooth p-2 sm:p-4 md:p-8 lg:p-12 flex flex-col items-center pt-16 sm:pt-4">
         {articleData ? (
           <ArticleRenderer data={articleData} onAnalyzeLink={handleAnalyzeLink} />
         ) : (
           <div className="flex items-center justify-center h-screen text-stone-500">
-            <p>没有数据</p>
+            <p className="text-sm sm:text-base">没有数据</p>
           </div>
         )}
       </div>
