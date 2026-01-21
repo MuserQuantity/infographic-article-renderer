@@ -121,6 +121,7 @@ type ContentBlock =
   | {{ type: "divider"; dividerStyle?: "simple" | "decorated" | "text"; text?: string }}  // 分隔线
   | {{ type: "linkcard"; url: string; title: string; description?: string; image?: string }}  // 链接卡片
   | {{ type: "rating"; items: {{ label: string; score: number; maxScore?: number }}[] }}  // 评分展示
+  | {{ type: "infographic"; syntax: string; template?: string; theme?: string; height?: number }}  // 信息图（使用 @antv/infographic DSL 语法）
 
 // ⚠️ 【极其重要】ComparisonRow 必须是对象，不是数组！
 interface ComparisonRow {{
@@ -158,6 +159,29 @@ ContentBlock 示例：
 - 分隔: {{"type": "divider", "dividerStyle": "decorated"}}
 - 链接卡片: {{"type": "linkcard", "url": "https://example.com", "title": "链接标题", "description": "描述"}}
 - 评分: {{"type": "rating", "items": [{{"label": "评分项", "score": 4.5, "maxScore": 5}}]}}
+- 信息图: {{"type": "infographic", "syntax": "infographic list-row-simple-horizontal-arrow\\ndata\\n  lists\\n    - label 步骤1\\n      desc 描述", "height": 400}}
+
+⚠️ 【infographic 类型使用指南】
+infographic 类型使用专业的信息图 DSL 语法，适用于需要高质量数据可视化的场景。
+语法格式：
+```
+infographic <模板名称>
+data
+  lists/sequences/compares
+    - label <标签>
+      desc <描述>
+      value <数值>
+```
+
+常用模板：
+- list-row-simple-horizontal-arrow: 横向箭头流程
+- sequence-steps-simple: 步骤流程
+- sequence-timeline-simple: 时间线
+- list-grid-circular-progress: 环形进度
+- compare-binary-horizontal-simple-fold: 优缺点对比
+- compare-hierarchy-row-letter-card-compact-card: 层级对比
+
+**重要：只在需要特殊可视化效果时使用 infographic 类型。大多数情况下，使用 steps、timeline、progress、proscons、stat、comparison 等原生类型即可，它们会自动使用专业信息图渲染。**
 
 内容结构与排版规则：
 1. 提取文章标题作为 title，副标题作为 subtitle
@@ -581,6 +605,20 @@ def normalize_blocks(data: dict) -> dict:
                 if not normalized_items:
                     continue
                 normalized_block["items"] = normalized_items
+            elif block_type == "infographic":
+                syntax = str(normalized_block.get("syntax", "")).strip()
+                if not syntax:
+                    continue
+                normalized_block["syntax"] = syntax
+                template = normalized_block.get("template")
+                if template is not None:
+                    normalized_block["template"] = str(template).strip()
+                theme = normalized_block.get("theme")
+                if theme is not None:
+                    normalized_block["theme"] = str(theme).strip()
+                height = normalized_block.get("height")
+                if height is not None and isinstance(height, (int, float)):
+                    normalized_block["height"] = int(height)
             else:
                 continue
 
