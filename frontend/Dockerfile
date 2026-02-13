@@ -16,6 +16,10 @@ RUN npm ci
 # 复制项目文件
 COPY . .
 
+# 接收构建时参数，Vite 会在 build 时将 VITE_* 环境变量内联到 JS bundle
+ARG VITE_USE_ANTV_INFOGRAPHIC=false
+ENV VITE_USE_ANTV_INFOGRAPHIC=$VITE_USE_ANTV_INFOGRAPHIC
+
 # 构建生产版本
 RUN npm run build
 

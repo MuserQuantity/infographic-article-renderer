@@ -81,7 +81,7 @@ const parseInlineMarkdown = (
     const fullMatch = match[0];
     if (fullMatch.startsWith('**') && fullMatch.endsWith('**')) {
       result.push(
-        <strong key={keyIndex++} className="font-bold text-stone-900 bg-amber-100/60 px-1 rounded-sm">
+        <strong key={keyIndex++} className="font-semibold text-inherit">
           {fullMatch.slice(2, -2)}
         </strong>
       );
@@ -176,7 +176,7 @@ const SmartLink = ({ href, children, onAnalyze }: { href: string; children: Reac
 };
 
 const ParagraphBlock = ({ text, onAnalyzeLink }: { text: string; onAnalyzeLink?: (url: string) => void }) => (
-  <p className="text-stone-800 leading-7 sm:leading-8 md:leading-9 mb-6 sm:mb-8 text-sm sm:text-base md:text-lg tracking-normal text-left font-normal antialiased">
+  <p className="text-stone-800 leading-7 sm:leading-8 md:leading-8 mb-6 sm:mb-8 text-sm sm:text-base md:text-lg tracking-normal text-left font-normal antialiased">
     {parseInlineMarkdown(text, onAnalyzeLink)}
   </p>
 );
@@ -1143,10 +1143,10 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
   <div className="mb-12 sm:mb-16 md:mb-20 last:mb-0 relative">
     <div className="flex items-baseline gap-3 sm:gap-4 md:gap-8 mb-8 sm:mb-12 md:mb-16 border-b border-stone-200 pb-4 sm:pb-6">
-      <div className="text-3xl sm:text-4xl md:text-5xl font-serif font-black text-stone-100 select-none">
+      <div className="text-2xl sm:text-3xl md:text-4xl font-serif font-black text-stone-200 select-none leading-none">
         {String(index + 1).padStart(2, '0')}
       </div>
-      <h2 className="text-xl sm:text-2xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight flex-1">
+      <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-stone-900 tracking-tight flex-1">
         {section.title}
       </h2>
     </div>
@@ -1169,7 +1169,7 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
   return (
     <div className="max-w-4xl mx-auto bg-white min-h-screen shadow-xl shadow-stone-900/5 overflow-hidden rounded-none md:rounded-3xl ring-1 ring-stone-900/5 transition-all">
       {/* Header */}
-      <header className="bg-stone-950 text-white px-4 py-10 sm:px-8 sm:py-16 md:px-24 md:py-32 relative overflow-hidden">
+      <header className="bg-stone-950 text-white px-4 py-10 sm:px-8 sm:py-16 md:px-20 md:py-20 relative overflow-hidden">
         {/* Subtle noise texture or pattern could go here */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
 
@@ -1187,7 +1187,7 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
             )}
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-7xl font-serif font-black mb-6 sm:mb-8 md:mb-10 leading-tight text-stone-50">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-black mb-6 sm:mb-8 md:mb-10 leading-tight text-stone-50">
             {data.title}
           </h1>
 

@@ -4,14 +4,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_USE_ANTV_INFOGRAPHIC=${VITE_USE_ANTV_INFOGRAPHIC:-false}
     container_name: infographic-frontend
     ports:
       - "8080:80"
     restart: unless-stopped
     networks:
       - app-network
-    environment:
-      - NODE_ENV=production
     depends_on:
       - backend
 

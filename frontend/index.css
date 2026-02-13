@@ -1,11 +1,36 @@
-/* 隐藏滚动条但保持滚动功能 */
-* {
+/* 隐藏页面级滚动条但保持滚动功能 */
+html, body {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
 }
 
-*::-webkit-scrollbar {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
+}
+
+/* 横向可滚动容器显示细滚动条，提示用户可以滚动 */
+.overflow-x-auto {
+  scrollbar-width: thin; /* Firefox */
+  -ms-overflow-style: auto; /* IE/Edge */
+}
+
+.overflow-x-auto::-webkit-scrollbar {
+  display: block;
+  height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 113, 108, 0.3);
+  border-radius: 3px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(120, 113, 108, 0.5);
 }
 
 :root {

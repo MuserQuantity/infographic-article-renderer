@@ -74,7 +74,28 @@ def extract_json_from_response(content: str) -> str:
     logger.warning("Could not find complete JSON object, returning from first '{'")
     return content[json_start:]
 
-SYSTEM_PROMPT = """你是一个专业的内容结构化助手。将输入文章转换为结构化 JSON。只输出 JSON，不要输出思维链、解释或任何多余文字。输出必须以 { 开始，以 } 结束。"""
+SYSTEM_PROMPT = """你是一个专业的内容结构化与排版设计助手。你的任务是将输入文章转换为结构化 JSON，并确保输出具有优秀的视觉排版节奏。只输出 JSON，不要输出思维链、解释或任何多余文字。输出必须以 { 开始，以 } 结束。
+
+排版美学核心原则：
+1. 节奏感：避免连续超过 2 个 paragraph，中间应穿插至少一个视觉型 block（如 callout、highlight、list、grid、stat、quote 等）
+2. 多样性：每个 section 应包含至少 2 种不同类型的 content block，避免单一类型堆叠
+3. 视觉锚点：每个 section 建议有 1 个"视觉焦点"block（如 stat、grid、comparison、timeline、steps、image 等），让读者眼睛有休息和聚焦的地方
+4. 适度留白：在话题转换处使用 divider（decorated 或 text 样式）
+5. 强调得当：关键结论或核心观点用 highlight 或 callout 突出，不要全用 paragraph 平铺
+
+内容块选择策略：
+- 数据/指标/百分比 → stat（优先）或 progress
+- 对比两个以上事物 → comparison 或 proscons
+- 流程/步骤/阶段 → steps 或 timeline
+- 核心要点/清单 → list（check 或 number 样式）
+- 关键概念解释 → definition
+- 常见问题 → accordion
+- 名言/观点引用 → quote
+- 重要提醒/警告 → callout（选择合适的 variant）
+- 关键结论/金句 → highlight
+- 特征/功能展示 → grid（2-3 列）
+- 评分/评价 → rating
+- 纯叙述内容 → paragraph（搭配 **粗体** 标注重点词）"""
 
 USER_PROMPT_TEMPLATE = """请将以下文章内容转换为结构化 JSON 格式，用于信息图文章渲染器。
 
@@ -198,6 +219,13 @@ data
 9. 子标题处理：如果文章中有类似 "3.1 xxx"、"第一部分：xxx" 这样的子标题，应该作为新 section 的 title，或者用 highlight block 突出显示
 10. 如果内容包含 URL，优先使用 linkcard，或在文本中使用 [文本](url)
 11. 面向长篇采访/逐字稿，尽量覆盖全部话题与关键观点，保留关键细节、例子、数字、结论；如有提问者/回答者，优先用 quote/paragraph 标注说话人以保持问答脉络
+
+排版节奏规则（非常重要）：
+12. 禁止连续超过 2 个 paragraph：如果有 3 段以上连续叙述，必须在中间插入 list、callout、highlight、quote 等视觉型 block 来打破单调
+13. 每个 section 至少包含 2 种不同类型的 content block，避免类型单一化
+14. 每个 section 推荐包含 1 个"视觉焦点"block（stat、grid、comparison、timeline、steps、image、proscons、rating 等），让页面有节奏感
+15. 在重要数据出现时优先使用 stat 而非写在 paragraph 中；在有步骤/流程时优先使用 steps 而非 list；在有明确对比时优先使用 comparison 而非 table
+16. 文章开头的第一个 section 建议以非 paragraph 的视觉型 block 开场（如 tags、stat、highlight、callout），快速吸引读者注意力
 
 {language_instruction}
 

@@ -1,13 +1,34 @@
 import { ArticleData } from './types';
 
-export const SYSTEM_PROMPT = `你是一台“内容结构化转换引擎”。请把输入的文本（文章、逐字稿或摘要）转换成适用于信息图渲染器的 JSON 结构。
+export const SYSTEM_PROMPT = `你是一台"内容结构化转换引擎"，同时具备优秀的排版设计能力。请把输入的文本（文章、逐字稿或摘要）转换成适用于信息图渲染器的 JSON 结构。
 只输出 JSON，不要输出解释或代码块。输出必须以 { 开始，以 } 结束。
 
 输出要求：
 1. 严格遵守以下 Schema。
 2. 仅允许在文本字段里使用 **粗体** 和 [文本](https://example.com)。
-3. 禁止其他 Markdown 语法（#, >, -, *, ```）。
+3. 禁止其他 Markdown 语法（#, >, -, *, \`\`\`）。
 4. 不要编造作者、日期、来源等元信息，缺失就省略。
+
+排版美学核心原则：
+1. 节奏感：避免连续超过 2 个 paragraph，中间应穿插至少一个视觉型 block（如 callout、highlight、list、grid、stat、quote 等）
+2. 多样性：每个 section 应包含至少 2 种不同类型的 content block，避免单一类型堆叠
+3. 视觉锚点：每个 section 建议有 1 个"视觉焦点"block（如 stat、grid、comparison、timeline、steps、image 等），让读者眼睛有休息和聚焦的地方
+4. 适度留白：在话题转换处使用 divider（decorated 或 text 样式）
+5. 强调得当：关键结论或核心观点用 highlight 或 callout 突出，不要全用 paragraph 平铺
+
+内容块选择策略：
+- 数据/指标/百分比 → stat（优先）或 progress
+- 对比两个以上事物 → comparison 或 proscons
+- 流程/步骤/阶段 → steps 或 timeline
+- 核心要点/清单 → list（check 或 number 样式）
+- 关键概念解释 → definition
+- 常见问题 → accordion
+- 名言/观点引用 → quote
+- 重要提醒/警告 → callout（选择合适的 variant）
+- 关键结论/金句 → highlight
+- 特征/功能展示 → grid（2-3 列）
+- 评分/评价 → rating
+- 纯叙述内容 → paragraph（搭配 **粗体** 标注重点词）
 
 Schema Definition（保持键名不变）:
 {
@@ -48,10 +69,17 @@ Schema Definition（保持键名不变）:
 内容结构与排版规则：
 1. 为了尽可能完整还原内容：每个 section 建议 3-8 个内容块；段落 2-6 句；列表/时间线 5-12 项；统计/评分 3-6 项。内容很长时允许更多 sections 与内容块，宁可拆分也不要过度压缩
 2. 不确定的内容用 paragraph 承载
-3. 如果有子标题（如“3.1 xxx”“第一部分：xxx”），独立成新的 section
+3. 如果有子标题（如"3.1 xxx""第一部分：xxx"），独立成新的 section
 4. 如果内容包含 URL，优先使用 linkcard 或在文本中使用 [文本](url)
 5. 过滤广告、订阅提示、社交媒体引导等非正文内容
 6. 面向长篇采访/逐字稿，尽量覆盖全部话题与关键观点，保留关键细节、例子、数字、结论；如有提问者/回答者，优先用 quote/paragraph 标注说话人以保持问答脉络
+
+排版节奏规则（非常重要）：
+7. 禁止连续超过 2 个 paragraph：如果有 3 段以上连续叙述，必须在中间插入 list、callout、highlight、quote 等视觉型 block 来打破单调
+8. 每个 section 至少包含 2 种不同类型的 content block，避免类型单一化
+9. 每个 section 推荐包含 1 个"视觉焦点"block（stat、grid、comparison、timeline、steps、image、proscons、rating 等），让页面有节奏感
+10. 在重要数据出现时优先使用 stat 而非写在 paragraph 中；在有步骤/流程时优先使用 steps 而非 list；在有明确对比时优先使用 comparison 而非 table
+11. 文章开头的第一个 section 建议以非 paragraph 的视觉型 block 开场（如 tags、stat、highlight、callout），快速吸引读者注意力
 
 请直接输出 JSON，不要包含 Markdown 代码块标记，不要输出任何解释或多余文本。`;
 
@@ -69,16 +97,16 @@ export const SAMPLE_DATA: ArticleData = {
       "title": "快速概览与指标",
       "content": [
         { "type": "tags", "items": ["对比", "Benchmarks", "图像生成", "速度"] },
-        { 
-          "type": "stat", 
-          "columns": 3, 
+        {
+          "type": "stat",
+          "columns": 3,
           "items": [
             { "label": "生成成功率", "value": "96%", "trend": "up", "note": "复杂场景保持稳定" },
             { "label": "平均延迟", "value": "1.8s", "trend": "flat", "note": "包含上传与解析" },
             { "label": "文字清晰度", "value": "4.7/5", "trend": "up", "note": "对比 MJ/Ideogram" }
-          ] 
+          ]
         },
-        { 
+        {
           "type": "paragraph",
           "text": "OpenAI 4o 提供统一的多模态能力，文本与图像生成均可在同一模型下完成，接口与 ChatGPT 前端均可访问。"
         },
@@ -93,16 +121,16 @@ export const SAMPLE_DATA: ArticleData = {
     {
       "title": "生成流程与时间线",
       "content": [
-        { 
-          "type": "timeline", 
+        {
+          "type": "timeline",
           "items": [
             { "title": "提交提示词", "time": "T0", "desc": "上传描述或参考图，设定分辨率与风格。" },
             { "title": "模型生成", "time": "T0 + 2s", "desc": "返回首张图，通常 1~2.5 秒。" },
             { "title": "质量评估", "time": "T0 + 3s", "desc": "检查文字清晰度、构图与角色一致性。" },
             { "title": "二次修订", "time": "T0 + 5s", "desc": "必要时重试或补充负面提示词。" }
-          ] 
+          ]
         },
-        { 
+        {
           "type": "list",
           "title": "最佳实践",
           "style": "check",
@@ -112,7 +140,7 @@ export const SAMPLE_DATA: ArticleData = {
             "角色一致性可用“同一人物”“相同穿着”“正脸/侧脸”说明。"
           ]
         },
-        { 
+        {
           "type": "callout",
           "variant": "warning",
           "text": "高密度文字、扭曲透视、极端光影仍可能出现细节错误，建议小步迭代。"
@@ -122,7 +150,7 @@ export const SAMPLE_DATA: ArticleData = {
     {
       "title": "模型对比与表格",
       "content": [
-        { 
+        {
           "type": "comparison",
           "columns": ["GPT-4o", "Midjourney", "Ideogram"],
           "rows": [
@@ -132,7 +160,7 @@ export const SAMPLE_DATA: ArticleData = {
             { "label": "响应速度", "values": ["快", "中", "中"] }
           ]
         },
-        { 
+        {
           "type": "table",
           "headers": ["指标", "GPT-4o", "Midjourney", "Ideogram"],
           "rows": [
@@ -141,7 +169,7 @@ export const SAMPLE_DATA: ArticleData = {
             ["角色一致性得分", "0.88", "0.70", "0.73"]
           ]
         },
-        { 
+        {
           "type": "quote",
           "text": "在文字渲染测试中，4o 首次就把招牌字样写对了，没有奇怪的变形或拼写错误。",
           "author": "Testing Benchmark"
@@ -151,13 +179,13 @@ export const SAMPLE_DATA: ArticleData = {
     {
       "title": "案例与视觉效果",
       "content": [
-        { 
+        {
           "type": "image",
           "src": "https://images.unsplash.com/photo-1526498460520-4c246339dccb?auto=format&fit=crop&w=1600&q=80",
           "alt": "示例图",
           "caption": "对标招牌文字清晰度的示例渲染"
         },
-        { 
+        {
           "type": "grid",
           "columns": 2,
           "items": [
@@ -165,7 +193,7 @@ export const SAMPLE_DATA: ArticleData = {
             { "title": "角色一致性", "description": "多场景保持面部与服饰一致。" }
           ]
         },
-        { 
+        {
           "type": "paragraph",
           "text": "对于需要文字的图像，4o 在中文与英文上都有较高的可读性；若需要特定字体，可在提示词中明确指定。"
         }
