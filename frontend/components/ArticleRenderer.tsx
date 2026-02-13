@@ -54,6 +54,9 @@ import {
   StarHalf
 } from 'lucide-react';
 
+// Whether to use @antv/infographic for rendering (controlled via VITE_USE_ANTV_INFOGRAPHIC in .env)
+const USE_ANTV_INFOGRAPHIC = import.meta.env.VITE_USE_ANTV_INFOGRAPHIC === 'true';
+
 // --- Sub-Components ---
 
 const parseInlineMarkdown = (
@@ -418,7 +421,7 @@ const LegacyStatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?:
 };
 
 const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2 | 3 }) => {
-  const [useLegacy, setUseLegacy] = React.useState(false);
+  const [useLegacy, setUseLegacy] = React.useState(!USE_ANTV_INFOGRAPHIC);
 
   if (useLegacy) {
     return <LegacyStatsBlock items={items} columns={columns} />;
@@ -477,7 +480,7 @@ const LegacyTimelineBlock = ({ items }: { items: { title: string; time?: string;
 );
 
 const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?: string }[] }) => {
-  const [useLegacy, setUseLegacy] = React.useState(false);
+  const [useLegacy, setUseLegacy] = React.useState(!USE_ANTV_INFOGRAPHIC);
 
   if (useLegacy) {
     return <LegacyTimelineBlock items={items} />;
@@ -587,7 +590,7 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
 };
 
 const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: ComparisonRow[] }) => {
-  const [useLegacy, setUseLegacy] = React.useState(false);
+  const [useLegacy, setUseLegacy] = React.useState(!USE_ANTV_INFOGRAPHIC);
 
   if (useLegacy) {
     return <LegacyComparisonBlock columns={columns} rows={rows} />;
@@ -759,7 +762,7 @@ const LegacyStepsBlock = ({ items }: { items: StepItem[] }) => (
 );
 
 const StepsBlock = ({ items }: { items: StepItem[] }) => {
-  const [useLegacy, setUseLegacy] = React.useState(false);
+  const [useLegacy, setUseLegacy] = React.useState(!USE_ANTV_INFOGRAPHIC);
 
   if (useLegacy) {
     return <LegacyStepsBlock items={items} />;
@@ -805,7 +808,7 @@ const LegacyProgressBlock = ({ items }: { items: ProgressItem[] }) => (
 );
 
 const ProgressBlock = ({ items }: { items: ProgressItem[] }) => {
-  const [useLegacy, setUseLegacy] = React.useState(false);
+  const [useLegacy, setUseLegacy] = React.useState(!USE_ANTV_INFOGRAPHIC);
 
   if (useLegacy) {
     return <LegacyProgressBlock items={items} />;
@@ -922,7 +925,7 @@ const ProsConsBlock = ({
   cons: string[];
   onAnalyzeLink?: (url: string) => void;
 }) => {
-  const [useLegacy, setUseLegacy] = React.useState(false);
+  const [useLegacy, setUseLegacy] = React.useState(!USE_ANTV_INFOGRAPHIC);
 
   if (useLegacy) {
     return <LegacyProsConsBlock pros={pros} cons={cons} onAnalyzeLink={onAnalyzeLink} />;
@@ -1071,11 +1074,14 @@ const RatingBlock = ({ items }: { items: RatingItem[] }) => {
   );
 };
 
-const InfographicBlock = ({ syntax, template, theme, height }: { syntax: string; template?: string; theme?: string; height?: number }) => (
-  <div className="mb-12">
-    <InfographicCard syntax={syntax} height={height || 400} />
-  </div>
-);
+const InfographicBlock = ({ syntax, template, theme, height }: { syntax: string; template?: string; theme?: string; height?: number }) => {
+  if (!USE_ANTV_INFOGRAPHIC) return null;
+  return (
+    <div className="mb-12">
+      <InfographicCard syntax={syntax} height={height || 400} />
+    </div>
+  );
+};
 
 // --- Main Block Switcher ---
 
