@@ -1145,6 +1145,9 @@ const stripTitleNumbering = (title: string): string => {
   return title
     // "1. xxx", "1.2 xxx", "1.2.3 xxx"
     .replace(/^[\d]+(?:\.[\d]+)*\.?\s+/, '')
+    // "一、xxx", "二、xxx", "（一）xxx" — 中文顿号/括号编号
+    .replace(/^[一二三四五六七八九十百千]+[、．.]\s*/, '')
+    .replace(/^[（(][一二三四五六七八九十百千\d]+[)）]\s*/, '')
     // "第一章 xxx", "第一节 xxx", "第一部分 xxx", "第1章 xxx"
     .replace(/^第[一二三四五六七八九十百千\d]+[章节部分条款篇]\s*[：:\s]\s*/, '')
     .replace(/^第[一二三四五六七八九十百千\d]+[章节部分条款篇]\s+/, '')
