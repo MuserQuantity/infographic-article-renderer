@@ -1173,8 +1173,8 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
         {/* Subtle noise texture or pattern could go here */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
 
-        <div className="relative z-10 max-w-3xl mx-auto text-center md:text-left">
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs sm:text-sm font-medium text-stone-400 uppercase tracking-wider sm:tracking-widest mb-6 sm:mb-8 justify-center md:justify-start">
+        <div className="relative z-10 max-w-3xl mx-auto text-left">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs sm:text-sm font-medium text-stone-400 uppercase tracking-wider sm:tracking-widest mb-6 sm:mb-8">
             {data.meta?.date && (
               <span className="flex items-center gap-1.5 sm:gap-2">
                 <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {data.meta.date}
@@ -1192,13 +1192,13 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
           </h1>
 
           {data.subtitle && (
-            <p className="text-base sm:text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-3 sm:pl-4 md:pl-6 mx-auto md:mx-0 text-left">
+            <p className="text-base sm:text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-3 sm:pl-4 md:pl-6 text-left">
               {data.subtitle}
             </p>
           )}
 
           {data.meta?.author && (
-            <div className="mt-10 sm:mt-16 flex items-center justify-center md:justify-start gap-3 sm:gap-4">
+            <div className="mt-10 sm:mt-16 flex items-center gap-3 sm:gap-4">
               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-700 flex items-center justify-center text-stone-300">
                   <User className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
