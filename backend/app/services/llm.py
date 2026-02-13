@@ -217,15 +217,16 @@ data
    - 不要出现 "```" 代码块标记
 8. 过滤掉广告、订阅提示、社交媒体引导等非正文内容
 9. 子标题处理：如果文章中有类似 "3.1 xxx"、"第一部分：xxx" 这样的子标题，应该作为新 section 的 title，或者用 highlight block 突出显示
-10. 如果内容包含 URL，优先使用 linkcard，或在文本中使用 [文本](url)
-11. 面向长篇采访/逐字稿，尽量覆盖全部话题与关键观点，保留关键细节、例子、数字、结论；如有提问者/回答者，优先用 quote/paragraph 标注说话人以保持问答脉络
+10. section 的 title 禁止包含序号前缀：渲染器会自动添加章节编号，因此 title 不要带 "1."、"2."、"第一章"、"Part 1" 等编号。例如原文标题 "1. 我们收集哪些信息？" 应写为 "我们收集哪些信息？"
+11. 如果内容包含 URL，优先使用 linkcard，或在文本中使用 [文本](url)
+12. 面向长篇采访/逐字稿，尽量覆盖全部话题与关键观点，保留关键细节、例子、数字、结论；如有提问者/回答者，优先用 quote/paragraph 标注说话人以保持问答脉络
 
 排版节奏规则（非常重要）：
-12. 禁止连续超过 2 个 paragraph：如果有 3 段以上连续叙述，必须在中间插入 list、callout、highlight、quote 等视觉型 block 来打破单调
-13. 每个 section 至少包含 2 种不同类型的 content block，避免类型单一化
-14. 每个 section 推荐包含 1 个"视觉焦点"block（stat、grid、comparison、timeline、steps、image、proscons、rating 等），让页面有节奏感
-15. 在重要数据出现时优先使用 stat 而非写在 paragraph 中；在有步骤/流程时优先使用 steps 而非 list；在有明确对比时优先使用 comparison 而非 table
-16. 文章开头的第一个 section 建议以非 paragraph 的视觉型 block 开场（如 tags、stat、highlight、callout），快速吸引读者注意力
+13. 禁止连续超过 2 个 paragraph：如果有 3 段以上连续叙述，必须在中间插入 list、callout、highlight、quote 等视觉型 block 来打破单调
+14. 每个 section 至少包含 2 种不同类型的 content block，避免类型单一化
+15. 每个 section 推荐包含 1 个"视觉焦点"block（stat、grid、comparison、timeline、steps、image、proscons、rating 等），让页面有节奏感
+16. 在重要数据出现时优先使用 stat 而非写在 paragraph 中；在有步骤/流程时优先使用 steps 而非 list；在有明确对比时优先使用 comparison 而非 table
+17. 文章开头的第一个 section 建议以非 paragraph 的视觉型 block 开场（如 tags、stat、highlight、callout），快速吸引读者注意力
 
 {language_instruction}
 

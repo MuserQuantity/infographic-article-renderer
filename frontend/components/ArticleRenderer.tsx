@@ -1140,6 +1140,22 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
 
 // --- Section Renderer ---
 
+// 去除 section 标题中的序号前缀（渲染器已自动添加章节编号）
+const stripTitleNumbering = (title: string): string => {
+  return title
+    // "1. xxx", "1.2 xxx", "1.2.3 xxx"
+    .replace(/^[\d]+(?:\.[\d]+)*\.?\s+/, '')
+    // "第一章 xxx", "第一节 xxx", "第一部分 xxx", "第1章 xxx"
+    .replace(/^第[一二三四五六七八九十百千\d]+[章节部分条款篇]\s*[：:\s]\s*/, '')
+    .replace(/^第[一二三四五六七八九十百千\d]+[章节部分条款篇]\s+/, '')
+    // "Part 1: xxx", "Chapter 1 xxx", "Section 1.2 xxx"
+    .replace(/^(?:Part|Chapter|Section)\s+[\d.]+[：:\s]\s*/i, '')
+    .replace(/^(?:Part|Chapter|Section)\s+[\d.]+\s+/i, '')
+    // "(1) xxx", "（1）xxx"
+    .replace(/^[（(][\d]+[)）]\s*/, '')
+    .trim();
+};
+
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
   <div className="mb-12 sm:mb-16 md:mb-20 last:mb-0 relative">
     <div className="flex items-baseline gap-3 sm:gap-4 md:gap-8 mb-8 sm:mb-12 md:mb-16 border-b border-stone-200 pb-4 sm:pb-6">
@@ -1147,7 +1163,7 @@ const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnal
         {String(index + 1).padStart(2, '0')}
       </div>
       <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-stone-900 tracking-tight flex-1">
-        {section.title}
+        {stripTitleNumbering(section.title)}
       </h2>
     </div>
     <div className="max-w-3xl mx-auto">
