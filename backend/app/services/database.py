@@ -173,7 +173,7 @@ class PocketBaseService:
             result_data = ArticleData(**fixed_result)
 
         source_type = record.get("source_type")
-        if source_type not in ("url", "text"):
+        if source_type not in ("url", "text", "dify"):
             url = record.get("url", "")
             if url.startswith(MANUAL_URL_PREFIX) or url.startswith(BILIBILI_VIDEO_PREFIX):
                 source_type = "text"

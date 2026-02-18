@@ -1,6 +1,6 @@
 import logging
 import uuid
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
 from app.models import (
     ArticleData,
     CreateTaskRequest,
@@ -16,6 +16,7 @@ from app.services.database import db_service
 from app.services.crawler import crawler_service
 from app.services.llm import llm_service
 from app.services.image_service import image_service
+from app.services.dify import dify_service
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,50 @@ async def process_text_task(task_id: str, text: str, translate_to_chinese: bool 
     except Exception as e:
         await handle_task_failure(task_id, e)
 
+async def process_dify_task(
+    task_id: str,
+    translate_to_chinese: bool,
+    file_content: bytes | None = None,
+    file_name: str | None = None,
+    file_type: str | None = None,
+    source_url: str | None = None
+):
+    """Background task to parse a document via Dify and convert to article JSON."""
+    logger.info(f"[Task {task_id}] Starting Dify processing")
+    try:
+        logger.info(f"[Task {task_id}] Updating status to 'processing'")
+        await db_service.update_task_status(task_id, "processing")
+
+        if file_content:
+            logger.info(f"[Task {task_id}] Step 1: Uploading file to Dify")
+            text = await dify_service.parse_file(
+                file_content,
+                file_name or "document",
+                file_type
+            )
+        elif source_url:
+            logger.info(f"[Task {task_id}] Step 1: Parsing URL via Dify")
+            text = await dify_service.parse_url(source_url)
+        else:
+            raise Exception("No file or URL provided for Dify parsing")
+
+        logger.info(f"[Task {task_id}] Step 2: Converting Dify output to article JSON")
+        article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
+
+        logger.info(f"[Task {task_id}] Step 3: Processing images")
+        article_data = await process_article_images(article_data)
+
+        logger.info(f"[Task {task_id}] Step 4: Updating task with result")
+        await db_service.update_task_status(
+            task_id,
+            "completed",
+            result=article_data
+        )
+        logger.info(f"[Task {task_id}] Task completed successfully!")
+
+    except Exception as e:
+        await handle_task_failure(task_id, e)
+
 
 @router.post(
     "/tasks",
@@ -229,6 +274,51 @@ async def create_text_task(
         background_tasks,
         source_url=str(request.source_url) if request.source_url else None
     )
+
+@router.post(
+    "/tasks/dify",
+    response_model=TaskResponse,
+    responses={400: {"model": ErrorResponse}}
+)
+async def create_dify_task(
+    background_tasks: BackgroundTasks,
+    file: UploadFile | None = File(default=None),
+    url: str | None = Form(default=None),
+    translate_to_chinese: bool = Form(default=True)
+):
+    """Create a new task from a document parsed by Dify workflow."""
+    if not dify_service.is_configured():
+        raise HTTPException(status_code=500, detail="Dify configuration is missing")
+
+    source_url = url.strip() if url else None
+    if file and source_url:
+        raise HTTPException(status_code=400, detail="Provide either file or url, not both")
+    if not file and not source_url:
+        raise HTTPException(status_code=400, detail="File or URL is required")
+
+    file_content = None
+    file_name = None
+    file_type = None
+    if file:
+        file_content = await file.read()
+        if not file_content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
+        file_name = file.filename or "document"
+        file_type = file.content_type
+
+    task_url = source_url or build_manual_url()
+    task = await db_service.create_task(task_url, source_type="dify")
+
+    background_tasks.add_task(
+        process_dify_task,
+        task.id,
+        translate_to_chinese,
+        file_content,
+        file_name,
+        file_type,
+        source_url
+    )
+    return task_to_response(task)
 
 
 @router.get(

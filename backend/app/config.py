@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     pocketbase_admin_email: str = ""
     pocketbase_admin_password: str = ""
 
+    # Dify Configuration
+    dify_base_url: str = "https://api.dify.ai"
+    dify_api_key: str = ""
+    dify_user: str = "infographic"
+
     # App Configuration
     debug: bool = False
 

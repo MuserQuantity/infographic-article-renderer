@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Link,
   FileText,
+  FileUp,
   Sparkles,
   ArrowRight,
   X,
@@ -24,7 +25,7 @@ interface TaskResponse {
   id: string;
   url: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
-  source_type?: 'url' | 'text';
+  source_type?: 'url' | 'text' | 'dify';
   result: ArticleData | null;
   error: string | null;
   created_at: string | null;
@@ -37,7 +38,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
   const [articleUrl, setArticleUrl] = useState<string | null>(null);
-  const [sourceType, setSourceType] = useState<'url' | 'text' | null>(null);
+  const [sourceType, setSourceType] = useState<'url' | 'text' | 'dify' | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
@@ -47,6 +48,10 @@ export default function App() {
   const [inputMode, setInputMode] = useState<'url' | 'text'>('url');
   const [showInput, setShowInput] = useState(true);
   const [translateToChinese, setTranslateToChinese] = useState(true);
+  const [showDifyModal, setShowDifyModal] = useState(false);
+  const [difyMode, setDifyMode] = useState<'file' | 'url'>('file');
+  const [difyUrl, setDifyUrl] = useState('');
+  const [difyFile, setDifyFile] = useState<File | null>(null);
 
   // 从 URL 参数获取任务 ID
   const getIdParam = useCallback(() => {
@@ -226,6 +231,63 @@ export default function App() {
     }
   }, [pollTaskStatus, updateBrowserUrl]);
 
+  const fetchArticleFromDify = useCallback(async (
+    payload: { file?: File | null; url?: string; translate?: boolean }
+  ) => {
+    setLoading(true);
+    setError(null);
+    setTaskStatus('creating');
+    setArticleUrl(payload.url || null);
+    setSourceType('dify');
+    setTaskId(null);
+    setShareCopied(false);
+    setShowInput(false);
+    setShowDifyModal(false);
+
+    updateBrowserUrl({ articleUrl: null, taskId: null });
+
+    try {
+      const formData = new FormData();
+      if (payload.file) {
+        formData.append('file', payload.file);
+      }
+      if (payload.url) {
+        formData.append('url', payload.url);
+      }
+      formData.append('translate_to_chinese', payload.translate === false ? 'false' : 'true');
+
+      const createResponse = await fetch(`${API_BASE_URL}/api/tasks/dify`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!createResponse.ok) {
+        throw new Error(`Failed to create task: ${createResponse.statusText}`);
+      }
+
+      const task: TaskResponse = await createResponse.json();
+      setTaskId(task.id);
+      updateBrowserUrl({ taskId: task.id });
+
+      if (task.status === 'completed' && task.result) {
+        setArticleData(task.result);
+        setLoading(false);
+        setTaskStatus(null);
+        return;
+      }
+
+      if (task.status === 'failed') {
+        throw new Error(task.error || 'Task failed');
+      }
+
+      await pollTaskStatus(task.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setLoading(false);
+      setTaskStatus(null);
+    }
+  }, [pollTaskStatus, updateBrowserUrl]);
+
   // 通过 ID 获取任务
   const fetchTaskById = useCallback(async (id: string) => {
     setLoading(true);
@@ -257,7 +319,7 @@ export default function App() {
       if (normalizedSourceType === 'url') {
         setInputUrl(task.url || '');
         setInputMode('url');
-      } else {
+      } else if (normalizedSourceType === 'text') {
         setInputMode('text');
       }
       setSourceType(normalizedSourceType);
@@ -289,6 +351,22 @@ export default function App() {
     }
     if (sourceType === 'text' && inputText.trim()) {
       fetchArticleFromText(inputText.trim(), translateToChinese);
+    }
+  };
+
+  const handleOpenDifyModal = () => {
+    setDifyMode('file');
+    setDifyUrl('');
+    setDifyFile(null);
+    setShowDifyModal(true);
+  };
+
+  const handleDifySubmit = () => {
+    if (difyMode === 'file' && difyFile) {
+      fetchArticleFromDify({ file: difyFile, translate: translateToChinese });
+    }
+    if (difyMode === 'url' && difyUrl.trim()) {
+      fetchArticleFromDify({ url: difyUrl.trim(), translate: translateToChinese });
     }
   };
 
@@ -324,6 +402,7 @@ export default function App() {
     setSourceType(null);
     setTaskId(null);
     setShareCopied(false);
+    setShowDifyModal(false);
     // 清除地址栏参数
     updateBrowserUrl({ articleUrl: null, taskId: null });
   };
@@ -369,7 +448,7 @@ export default function App() {
 
           {/* 输入表单 */}
           <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-            <div className="grid grid-cols-2 gap-2 p-1 bg-stone-900 border border-stone-800 rounded-lg sm:rounded-xl">
+            <div className="grid grid-cols-3 gap-2 p-1 bg-stone-900 border border-stone-800 rounded-lg sm:rounded-xl">
               <button
                 type="button"
                 onClick={() => setInputMode('url')}
@@ -391,6 +470,14 @@ export default function App() {
                 }`}
               >
                 手动文本
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenDifyModal}
+                className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all text-stone-400 hover:text-stone-200 flex items-center justify-center gap-2"
+              >
+                <FileUp className="w-4 h-4" />
+                文档
               </button>
             </div>
 
@@ -478,6 +565,106 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {showDifyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-lg bg-stone-900 border border-stone-700 rounded-2xl shadow-2xl">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">文档解析</h3>
+                  <p className="text-xs text-stone-400 mt-1">通过 Dify 工作流提取文本</p>
+                </div>
+                <button
+                  onClick={() => setShowDifyModal(false)}
+                  className="p-2 text-stone-400 hover:text-white hover:bg-stone-800 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-2 p-1 bg-stone-950 border border-stone-800 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setDifyMode('file')}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      difyMode === 'file'
+                        ? 'bg-stone-800 text-white shadow'
+                        : 'text-stone-400 hover:text-stone-200'
+                    }`}
+                  >
+                    上传文件
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDifyMode('url')}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      difyMode === 'url'
+                        ? 'bg-stone-800 text-white shadow'
+                        : 'text-stone-400 hover:text-stone-200'
+                    }`}
+                  >
+                    填写URL
+                  </button>
+                </div>
+
+                {difyMode === 'file' ? (
+                  <div className="space-y-3">
+                    <label className="flex items-center justify-between px-4 py-3 bg-stone-950 border border-stone-800 rounded-lg cursor-pointer hover:border-stone-700 transition-colors">
+                      <span className="text-sm text-stone-300">选择本地文档</span>
+                      <span className="text-xs text-stone-500">DOCX / PDF / TXT</span>
+                      <input
+                        type="file"
+                        accept=".doc,.docx,.pdf,.txt,.md"
+                        className="hidden"
+                        onChange={(event) => setDifyFile(event.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {difyFile && (
+                      <p className="text-xs text-stone-400">已选择: {difyFile.name}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">
+                      <Link className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="url"
+                      value={difyUrl}
+                      onChange={(event) => setDifyUrl(event.target.value)}
+                      placeholder="https://example.com/file.docx"
+                      className="w-full bg-stone-950 border border-stone-800 rounded-lg pl-9 pr-3 py-3 text-sm text-white placeholder-stone-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-xs text-stone-500">
+                  <span>将使用当前翻译设置</span>
+                  <span>支持常见文档格式</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setShowDifyModal(false)}
+                  className="px-4 py-2 text-sm text-stone-300 hover:text-white hover:bg-stone-800 rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDifySubmit}
+                  disabled={difyMode === 'file' ? !difyFile : !difyUrl.trim()}
+                  className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-stone-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                >
+                  开始解析
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -492,7 +679,13 @@ export default function App() {
             {taskStatus === 'loading' && '获取任务中...'}
             {taskStatus === 'creating' && '创建任务中...'}
             {taskStatus === 'pending' && '等待处理...'}
-            {taskStatus === 'processing' && (sourceType === 'text' ? '正在转换文本内容...' : '正在爬取和转换文章...')}
+            {taskStatus === 'processing' && (
+              sourceType === 'text'
+                ? '正在转换文本内容...'
+                : sourceType === 'dify'
+                  ? '正在解析文档内容...'
+                  : '正在爬取和转换文章...'
+            )}
           </p>
           {sourceType === 'url' && articleUrl && (
             <p className="text-stone-600 text-sm flex items-center justify-center gap-2 max-w-md mx-auto truncate px-4">
@@ -533,7 +726,7 @@ export default function App() {
               <X className="w-4 h-4" />
               返回
             </button>
-            {sourceType && (
+            {(sourceType === 'url' || sourceType === 'text') && (
               <button
                 onClick={handleRefresh}
                 className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-xl font-medium transition-colors"

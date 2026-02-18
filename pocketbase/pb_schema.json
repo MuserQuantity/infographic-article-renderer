@@ -27,7 +27,7 @@
         "required": false,
         "options": {
           "maxSelect": 1,
-          "values": ["url", "text"]
+          "values": ["url", "text", "dify"]
         }
       },
       {

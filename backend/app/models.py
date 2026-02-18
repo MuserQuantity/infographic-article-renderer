@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Task Status
 TaskStatus = Literal["pending", "processing", "completed", "failed"]
-TaskSourceType = Literal["url", "text"]
+TaskSourceType = Literal["url", "text", "dify"]
 
 
 # Request Models
