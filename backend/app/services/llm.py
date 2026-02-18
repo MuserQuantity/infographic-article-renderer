@@ -153,6 +153,10 @@ interface ComparisonRow {{
 
 ⚠️⚠️⚠️ 【最重要的格式要求 - comparison 类型】⚠️⚠️⚠️
 comparison 的 rows 必须是对象数组，每个对象包含 label 和 values 字段！
+并且必须满足：
+- values 的长度必须与 columns 的长度完全一致
+- 每个 values 项都必须是完整短句，不要把一句话拆到相邻列
+- 不允许空字符串；缺失信息请使用 "—" 占位
 
 ✅ 正确格式：
 {{"type": "comparison", "columns": ["GPT-5", "GPT-4"], "rows": [
@@ -458,6 +462,7 @@ def normalize_blocks(data: dict) -> dict:
                 if not isinstance(columns, list):
                     columns = [columns]
                 normalized_columns = [str(col).strip() for col in columns if str(col).strip()]
+                expected_values_count = len(normalized_columns)
                 rows = normalized_block.get("rows") or []
                 if not isinstance(rows, list):
                     rows = [rows]
@@ -468,7 +473,18 @@ def normalize_blocks(data: dict) -> dict:
                         values = row.get("values") or []
                         if not isinstance(values, list):
                             values = [values]
-                        normalized_values = [str(value).strip() for value in values if str(value).strip()]
+                        normalized_values = []
+                        for value in values:
+                            text = str(value).strip() if value is not None else ""
+                            normalized_values.append(text if text else "—")
+
+                        if expected_values_count > 0:
+                            normalized_values = normalized_values[:expected_values_count]
+                            while len(normalized_values) < expected_values_count:
+                                normalized_values.append("—")
+                        elif not normalized_values:
+                            normalized_values = ["—"]
+
                         if label:
                             normalized_rows.append({"label": label, "values": normalized_values})
                 if not normalized_rows:

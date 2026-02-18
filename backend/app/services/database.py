@@ -13,6 +13,7 @@ def fix_comparison_rows_in_result(data: dict) -> dict:
     """
     修正数据库中存储的旧格式 comparison rows。
     将列表格式 ['label', 'val1', 'val2'] 转换为对象格式 {'label': 'label', 'values': ['val1', 'val2']}
+    并保证每行 values 与 columns 长度一致，不足补 "—"。
     只对 comparison 类型的 block 进行修复，table 类型的 rows 保持 string[][] 格式。
     """
     if not data or "sections" not in data:
@@ -23,6 +24,11 @@ def fix_comparison_rows_in_result(data: dict) -> dict:
             block_type = block.get("type", "")
             # 只对 comparison 类型的 block 进行修复
             if block_type == "comparison" and "rows" in block and block["rows"]:
+                columns = block.get("columns") or []
+                if not isinstance(columns, list):
+                    columns = [columns]
+                expected_values_count = len([str(col).strip() for col in columns if str(col).strip()])
+
                 fixed_rows = []
                 needs_fix = False
                 for row in block["rows"]:
@@ -30,20 +36,48 @@ def fix_comparison_rows_in_result(data: dict) -> dict:
                         # 列表格式，需要转换
                         needs_fix = True
                         if len(row) >= 1:
-                            fixed_rows.append({
-                                "label": str(row[0]),
-                                "values": [str(v) for v in row[1:]]
-                            })
+                            label = str(row[0]).strip()
+                            values = [str(v).strip() if v is not None else "" for v in row[1:]]
                         else:
-                            fixed_rows.append({"label": "", "values": []})
+                            label = ""
+                            values = []
+
+                        normalized_values = [value if value else "—" for value in values]
+                        if expected_values_count > 0:
+                            normalized_values = normalized_values[:expected_values_count]
+                            while len(normalized_values) < expected_values_count:
+                                normalized_values.append("—")
+                        elif not normalized_values:
+                            normalized_values = ["—"]
+
+                        fixed_rows.append({"label": label, "values": normalized_values})
                     elif isinstance(row, dict):
                         # 已经是正确的对象格式
-                        fixed_rows.append(row)
+                        label = str(row.get("label", "")).strip()
+                        values = row.get("values") or []
+                        if not isinstance(values, list):
+                            values = [values]
+                            needs_fix = True
+
+                        normalized_values = []
+                        for value in values:
+                            text = str(value).strip() if value is not None else ""
+                            normalized_values.append(text if text else "—")
+
+                        if expected_values_count > 0:
+                            normalized_values = normalized_values[:expected_values_count]
+                            while len(normalized_values) < expected_values_count:
+                                normalized_values.append("—")
+                        elif not normalized_values:
+                            normalized_values = ["—"]
+
+                        fixed_rows.append({"label": label, "values": normalized_values})
                     else:
                         needs_fix = True
-                        fixed_rows.append({"label": str(row), "values": []})
+                        normalized_values = ["—"] * expected_values_count if expected_values_count > 0 else ["—"]
+                        fixed_rows.append({"label": str(row).strip(), "values": normalized_values})
 
-                if needs_fix:
+                if needs_fix or fixed_rows != block["rows"]:
                     block["rows"] = fixed_rows
 
     return data
