@@ -2,6 +2,7 @@ import logging
 import uuid
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.models import (
+    ArticleData,
     CreateTaskRequest,
     CreateTextTaskRequest,
     RefreshTaskRequest,
@@ -52,6 +53,37 @@ def task_to_list_item(task: Task) -> TaskListItem:
         updated_at=task.updated_at.isoformat() if task.updated_at else None,
     )
 
+async def process_article_images(article_data: ArticleData) -> ArticleData:
+    article_dict = article_data.model_dump()
+    article_dict = await image_service.process_article_images(article_dict)
+    return ArticleData(**article_dict)
+
+async def handle_task_failure(task_id: str, error: Exception):
+    error_id = uuid.uuid4().hex[:8]
+    error_msg = str(error)
+    logger.exception(f"[Task {task_id}] Task failed (error_id={error_id})")
+    logger.error(f"[Task {task_id}] Raw error for error_id={error_id}: {error_msg}")
+
+    try:
+        friendly_error = await llm_service.translate_error(error_msg)
+    except Exception:
+        friendly_error = "处理过程中发生错误，请稍后重试"
+
+    friendly_error_with_id = f"{friendly_error}（错误ID: {error_id}）"
+    logger.info(f"[Task {task_id}] Translated error for user: {friendly_error_with_id}")
+
+    try:
+        await db_service.update_task_status(
+            task_id,
+            "failed",
+            error=friendly_error_with_id
+        )
+        logger.info(f"[Task {task_id}] Task status updated to 'failed'")
+    except Exception as update_error:
+        logger.exception(
+            f"[Task {task_id}] Failed to update task status (error_id={error_id}): {update_error}"
+        )
+
 
 async def create_and_start_task(
     url: str,
@@ -100,11 +132,7 @@ async def process_task(task_id: str, url: str, translate_to_chinese: bool = True
 
         # Step 3: Process images (download and upload to PocketBase)
         logger.info(f"[Task {task_id}] Step 3: Processing images...")
-        article_dict = article_data.model_dump()
-        article_dict = await image_service.process_article_images(article_dict)
-        # 重新创建 ArticleData 对象
-        from app.models import ArticleData
-        article_data = ArticleData(**article_dict)
+        article_data = await process_article_images(article_data)
         logger.info(f"[Task {task_id}] Image processing completed")
 
         # Step 4: Update task with result
@@ -117,33 +145,7 @@ async def process_task(task_id: str, url: str, translate_to_chinese: bool = True
         logger.info(f"[Task {task_id}] Task completed successfully!")
 
     except Exception as e:
-        error_id = uuid.uuid4().hex[:8]
-        error_msg = str(e)
-        # 记录详细错误到服务器日志
-        logger.exception(f"[Task {task_id}] Task failed (error_id={error_id})")
-        logger.error(f"[Task {task_id}] Raw error for error_id={error_id}: {error_msg}")
-
-        # 将错误翻译为用户友好的中文提示
-        try:
-            friendly_error = await llm_service.translate_error(error_msg)
-        except Exception:
-            friendly_error = "处理过程中发生错误，请稍后重试"
-
-        friendly_error_with_id = f"{friendly_error}（错误ID: {error_id}）"
-        logger.info(f"[Task {task_id}] Translated error for user: {friendly_error_with_id}")
-
-        # Update task with friendly error - 用额外的 try-except 确保不会再次失败
-        try:
-            await db_service.update_task_status(
-                task_id,
-                "failed",
-                error=friendly_error_with_id
-            )
-            logger.info(f"[Task {task_id}] Task status updated to 'failed'")
-        except Exception as update_error:
-            logger.exception(
-                f"[Task {task_id}] Failed to update task status (error_id={error_id}): {update_error}"
-            )
+        await handle_task_failure(task_id, e)
 
 
 async def process_text_task(task_id: str, text: str, translate_to_chinese: bool = True):
@@ -158,10 +160,7 @@ async def process_text_task(task_id: str, text: str, translate_to_chinese: bool 
         logger.info(f"[Task {task_id}] LLM conversion completed successfully")
 
         logger.info(f"[Task {task_id}] Step 2: Processing images...")
-        article_dict = article_data.model_dump()
-        article_dict = await image_service.process_article_images(article_dict)
-        from app.models import ArticleData
-        article_data = ArticleData(**article_dict)
+        article_data = await process_article_images(article_data)
         logger.info(f"[Task {task_id}] Image processing completed")
 
         logger.info(f"[Task {task_id}] Step 3: Updating task with result...")
@@ -173,30 +172,7 @@ async def process_text_task(task_id: str, text: str, translate_to_chinese: bool 
         logger.info(f"[Task {task_id}] Task completed successfully!")
 
     except Exception as e:
-        error_id = uuid.uuid4().hex[:8]
-        error_msg = str(e)
-        logger.exception(f"[Task {task_id}] Task failed (error_id={error_id})")
-        logger.error(f"[Task {task_id}] Raw error for error_id={error_id}: {error_msg}")
-
-        try:
-            friendly_error = await llm_service.translate_error(error_msg)
-        except Exception:
-            friendly_error = "处理过程中发生错误，请稍后重试"
-
-        friendly_error_with_id = f"{friendly_error}（错误ID: {error_id}）"
-        logger.info(f"[Task {task_id}] Translated error for user: {friendly_error_with_id}")
-
-        try:
-            await db_service.update_task_status(
-                task_id,
-                "failed",
-                error=friendly_error_with_id
-            )
-            logger.info(f"[Task {task_id}] Task status updated to 'failed'")
-        except Exception as update_error:
-            logger.exception(
-                f"[Task {task_id}] Failed to update task status (error_id={error_id}): {update_error}"
-            )
+        await handle_task_failure(task_id, e)
 
 
 @router.post(
