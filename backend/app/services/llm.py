@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+from typing import Optional
 from openai import (
     APIConnectionError,
     APITimeoutError,
@@ -679,10 +680,12 @@ def normalize_blocks(data: dict) -> dict:
 class LLMService:
     def __init__(self):
         settings = get_settings()
+        configured_timeout = settings.llm_timeout_seconds
+        self.request_timeout_seconds: Optional[float] = configured_timeout if configured_timeout > 0 else None
         self.client = AsyncOpenAI(
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key,
-            timeout=settings.llm_timeout_seconds,
+            timeout=self.request_timeout_seconds,
             max_retries=0
         )
         self.model = settings.llm_model_name
@@ -690,10 +693,11 @@ class LLMService:
         self.retry_base_delay = max(0.1, settings.llm_retry_base_delay)
         self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
         self.use_response_format = settings.llm_use_response_format
-        self.request_timeout_seconds = max(1.0, settings.llm_timeout_seconds)
         self.total_timeout_seconds = self._calculate_total_timeout()
 
-    def _calculate_total_timeout(self) -> float:
+    def _calculate_total_timeout(self) -> Optional[float]:
+        if self.request_timeout_seconds is None:
+            return None
         attempts = max(1, self.max_retries + 1)
         retry_delay_total = self.retry_max_delay * max(0, attempts - 1)
         return self.request_timeout_seconds * attempts + retry_delay_total + 5.0
@@ -758,18 +762,21 @@ class LLMService:
         if self.use_response_format:
             request_kwargs["response_format"] = {"type": "json_object"}
 
-        try:
-            response = await asyncio.wait_for(
-                self._create_chat_completion(**request_kwargs),
-                timeout=self.total_timeout_seconds
-            )
-        except asyncio.TimeoutError:
-            logger.error(
-                "LLM request timed out after %.1fs (content_length=%s)",
-                self.total_timeout_seconds,
-                len(markdown_content)
-            )
-            raise Exception(f"LLM request timed out after {self.total_timeout_seconds:.1f}s")
+        if self.total_timeout_seconds is None:
+            response = await self._create_chat_completion(**request_kwargs)
+        else:
+            try:
+                response = await asyncio.wait_for(
+                    self._create_chat_completion(**request_kwargs),
+                    timeout=self.total_timeout_seconds
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    "LLM request timed out after %.1fs (content_length=%s)",
+                    self.total_timeout_seconds,
+                    len(markdown_content)
+                )
+                raise Exception(f"LLM request timed out after {self.total_timeout_seconds:.1f}s")
 
         content = response.choices[0].message.content
         if not content:
