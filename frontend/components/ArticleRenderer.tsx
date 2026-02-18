@@ -559,7 +559,7 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
   return (
     <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white">
       <div className="overflow-x-auto">
-        <div className="grid" style={{ gridTemplateColumns: `120px repeat(${columnCount}, minmax(100px, 1fr))`, minWidth: Math.max((columnCount + 1) * 110, 350) }}>
+        <div className="grid" style={{ gridTemplateColumns: `minmax(140px, 1.2fr) repeat(${columnCount}, minmax(140px, 1fr))`, minWidth: Math.max((columnCount + 1) * 140, 420) }}>
           <div className="bg-stone-50 px-3 py-3 sm:px-6 sm:py-4 text-[10px] sm:text-xs font-bold uppercase text-stone-400 flex items-center whitespace-nowrap">
             {labelHeader}
           </div>
@@ -570,13 +570,13 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
           ))}
           {safeRows.map((row, idx) => (
             <React.Fragment key={idx}>
-              <div className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-nowrap">
+              <div className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-normal break-words leading-relaxed">
                 {row.label}
               </div>
               {row.values.map((val, vIdx) => (
                 <div
                   key={vIdx}
-                  className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
+                  className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center whitespace-normal break-words ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
                 >
                   {val}
                 </div>
