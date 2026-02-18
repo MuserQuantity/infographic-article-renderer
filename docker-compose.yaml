@@ -32,6 +32,9 @@ services:
       - POCKETBASE_URL=${POCKETBASE_URL}
       - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
       - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+      - DIFY_BASE_URL=${DIFY_BASE_URL:-https://api.dify.ai}
+      - DIFY_API_KEY=${DIFY_API_KEY}
+      - DIFY_USER=${DIFY_USER:-infographic}
       - DEBUG=false
 
 networks:

@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
-from app.config import get_settings
+from app.config import get_settings, ENV_FILE
 
 # 配置日志
 logging.basicConfig(
@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 logger.info(f"Starting application with debug={settings.debug}")
+logger.info(f"Resolved env file: {ENV_FILE} (exists={ENV_FILE.exists()})")
+logger.info(f"Dify env loaded: base_url={settings.dify_base_url} api_key_set={bool(settings.dify_api_key)}")
 
 app = FastAPI(
     title="Infographic Article Renderer API",

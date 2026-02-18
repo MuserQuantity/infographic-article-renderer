@@ -2,9 +2,14 @@ from pydantic_settings import BaseSettings
 from functools import lru_cache
 from pathlib import Path
 
-# 项目根目录 (backend 的上级目录)
-ROOT_DIR = Path(__file__).parent.parent.parent
-ENV_FILE = ROOT_DIR / ".env"
+MODULE_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = MODULE_DIR.parent
+PROJECT_DIR = BACKEND_DIR.parent
+ENV_CANDIDATES = [
+    PROJECT_DIR / ".env",
+    BACKEND_DIR / ".env",
+]
+ENV_FILE = next((path for path in ENV_CANDIDATES if path.exists()), ENV_CANDIDATES[0])
 
 
 class Settings(BaseSettings):
