@@ -14,9 +14,23 @@ class DifyService:
         self.base_url = settings.dify_base_url.rstrip("/")
         self.api_key = settings.dify_api_key
         self.user = settings.dify_user
+        logger.info(
+            "Dify service initialized: base_url=%s user=%s api_key_set=%s",
+            self.base_url,
+            self.user,
+            bool(self.api_key)
+        )
 
     def is_configured(self) -> bool:
-        return bool(self.base_url and self.api_key)
+        configured = bool(self.base_url and self.api_key)
+        if not configured:
+            missing = []
+            if not self.base_url:
+                missing.append("DIFY_BASE_URL")
+            if not self.api_key:
+                missing.append("DIFY_API_KEY")
+            logger.error("Dify is not configured. Missing: %s", ", ".join(missing))
+        return configured
 
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.api_key}"}
@@ -25,6 +39,12 @@ class DifyService:
         if not self.is_configured():
             raise Exception("Dify is not configured")
 
+        logger.info(
+            "Uploading file to Dify: filename=%s content_type=%s size_bytes=%s",
+            filename,
+            content_type or "application/octet-stream",
+            len(content)
+        )
         files = {
             "file": (filename, content, content_type or "application/octet-stream")
         }
@@ -39,12 +59,18 @@ class DifyService:
             )
 
         if response.status_code != 200:
+            logger.error(
+                "Dify upload failed: status=%s body=%s",
+                response.status_code,
+                response.text[:500]
+            )
             raise Exception(f"Dify upload failed: {response.text}")
 
         payload = response.json()
         upload_id = payload.get("id")
         if not upload_id:
             raise Exception("Dify upload did not return file id")
+        logger.info("Dify file uploaded successfully: upload_id=%s", upload_id)
         return upload_id
 
     async def run_workflow(self, inputs: dict) -> dict:
@@ -56,6 +82,7 @@ class DifyService:
             "response_mode": "blocking",
             "user": self.user
         }
+        logger.info("Running Dify workflow with input keys: %s", list(inputs.keys()))
 
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
@@ -65,9 +92,22 @@ class DifyService:
             )
 
         if response.status_code != 200:
+            logger.error(
+                "Dify workflow failed: status=%s body=%s",
+                response.status_code,
+                response.text[:500]
+            )
             raise Exception(f"Dify workflow failed: {response.text}")
 
-        return response.json()
+        payload = response.json()
+        data = payload.get("data") or {}
+        outputs = data.get("outputs") or {}
+        logger.info(
+            "Dify workflow succeeded: status=%s output_keys=%s",
+            data.get("status"),
+            list(outputs.keys()) if isinstance(outputs, dict) else []
+        )
+        return payload
 
     def extract_text(self, payload: dict) -> str:
         data = payload.get("data") or {}
@@ -78,8 +118,13 @@ class DifyService:
         outputs = data.get("outputs") or {}
         text = outputs.get("text")
         if not text or not str(text).strip():
+            logger.error(
+                "Dify workflow returned empty text. output_keys=%s",
+                list(outputs.keys()) if isinstance(outputs, dict) else []
+            )
             raise Exception("Dify workflow returned empty text")
 
+        logger.info("Dify text extracted successfully: length=%s", len(str(text).strip()))
         return str(text).strip()
 
     async def parse_file(self, content: bytes, filename: str, content_type: Optional[str]) -> str:

@@ -1,6 +1,8 @@
 import logging
 import uuid
+import httpx
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
+from pydantic import HttpUrl, TypeAdapter, ValidationError
 from app.models import (
     ArticleData,
     CreateTaskRequest,
@@ -22,10 +24,34 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["tasks"])
 MANUAL_URL_PREFIX = "https://manual.local/"
+HTTP_URL_ADAPTER = TypeAdapter(HttpUrl)
 
 
 def build_manual_url() -> str:
     return f"{MANUAL_URL_PREFIX}{uuid.uuid4().hex}"
+
+
+def extract_http_error_detail(error: httpx.HTTPStatusError, fallback: str) -> str:
+    response = error.response
+    if response is None:
+        return fallback
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+
+    if isinstance(payload, dict):
+        for key in ("message", "error", "detail"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+    raw_text = response.text.strip()
+    if raw_text:
+        return raw_text[:500]
+
+    return fallback
 
 
 def task_to_response(task: Task) -> TaskResponse:
@@ -287,14 +313,31 @@ async def create_dify_task(
     translate_to_chinese: bool = Form(default=True)
 ):
     """Create a new task from a document parsed by Dify workflow."""
+    logger.info(
+        "Received Dify task request: has_file=%s has_url=%s translate_to_chinese=%s",
+        bool(file),
+        bool(url and url.strip()),
+        translate_to_chinese
+    )
+
     if not dify_service.is_configured():
-        raise HTTPException(status_code=500, detail="Dify configuration is missing")
+        logger.error("Dify endpoint called but DIFY_API_KEY is missing")
+        raise HTTPException(
+            status_code=503,
+            detail="Dify service is not configured. Please set DIFY_API_KEY in backend .env."
+        )
 
     source_url = url.strip() if url else None
     if file and source_url:
         raise HTTPException(status_code=400, detail="Provide either file or url, not both")
     if not file and not source_url:
         raise HTTPException(status_code=400, detail="File or URL is required")
+
+    if source_url:
+        try:
+            source_url = str(HTTP_URL_ADAPTER.validate_python(source_url))
+        except ValidationError:
+            raise HTTPException(status_code=400, detail="Invalid URL. Include http:// or https://")
 
     file_content = None
     file_name = None
@@ -305,9 +348,26 @@ async def create_dify_task(
             raise HTTPException(status_code=400, detail="Uploaded file is empty")
         file_name = file.filename or "document"
         file_type = file.content_type
+        logger.info(
+            "Dify task file accepted: filename=%s content_type=%s size_bytes=%s",
+            file_name,
+            file_type or "application/octet-stream",
+            len(file_content)
+        )
+    elif source_url:
+        logger.info("Dify task URL accepted: %s", source_url)
 
     task_url = source_url or build_manual_url()
-    task = await db_service.create_task(task_url, source_type="dify")
+    try:
+        task = await db_service.create_task(task_url, source_type="dify")
+    except httpx.HTTPStatusError as error:
+        status_code = 400 if error.response and error.response.status_code == 400 else 502
+        detail = extract_http_error_detail(error, "Failed to create Dify task")
+        logger.exception(f"Failed to create Dify task record: {detail}")
+        raise HTTPException(status_code=status_code, detail=detail)
+    except Exception:
+        logger.exception("Unexpected error while creating Dify task record")
+        raise HTTPException(status_code=500, detail="Failed to create Dify task")
 
     background_tasks.add_task(
         process_dify_task,
@@ -317,6 +377,11 @@ async def create_dify_task(
         file_name,
         file_type,
         source_url
+    )
+    logger.info(
+        "Dify task created and queued: task_id=%s source=%s",
+        task.id,
+        "file" if file_content else "url"
     )
     return task_to_response(task)
 
