@@ -59,6 +59,7 @@ def task_to_response(task: Task) -> TaskResponse:
         id=task.id,
         url=task.url,
         status=task.status,
+        stage=task.stage,
         source_type=task.source_type,
         result=task.result,
         error=task.error,
@@ -72,6 +73,7 @@ def task_to_list_item(task: Task) -> TaskListItem:
         id=task.id,
         url=task.url,
         status=task.status,
+        stage=task.stage,
         source_type=task.source_type,
         title=task.result.title if task.result else None,
         subtitle=task.result.subtitle if task.result else None,
@@ -103,6 +105,7 @@ async def handle_task_failure(task_id: str, error: Exception):
         await db_service.update_task_status(
             task_id,
             "failed",
+            stage="failed",
             error=friendly_error_with_id
         )
         logger.info(f"[Task {task_id}] Task status updated to 'failed'")
@@ -143,30 +146,31 @@ async def process_task(task_id: str, url: str, translate_to_chinese: bool = True
     """Background task to crawl URL and convert to article JSON."""
     logger.info(f"[Task {task_id}] Starting processing for URL: {url}")
     try:
-        # Update status to processing
-        logger.info(f"[Task {task_id}] Updating status to 'processing'")
-        await db_service.update_task_status(task_id, "processing")
-
         # Step 1: Crawl the URL
         logger.info(f"[Task {task_id}] Step 1: Crawling URL...")
+        await db_service.update_task_status(task_id, "processing", stage="crawling")
         markdown_content = await crawler_service.crawl_url(url)
         logger.info(f"[Task {task_id}] Crawl completed, content length: {len(markdown_content)}")
 
         # Step 2: Convert to article JSON using LLM
         logger.info(f"[Task {task_id}] Step 2: Converting to article JSON using LLM...")
+        await db_service.update_task_status(task_id, "processing", stage="converting")
         article_data = await llm_service.convert_to_article_json(markdown_content, translate_to_chinese)
         logger.info(f"[Task {task_id}] LLM conversion completed successfully")
 
         # Step 3: Process images (download and upload to PocketBase)
         logger.info(f"[Task {task_id}] Step 3: Processing images...")
+        await db_service.update_task_status(task_id, "processing", stage="processing_images")
         article_data = await process_article_images(article_data)
         logger.info(f"[Task {task_id}] Image processing completed")
 
         # Step 4: Update task with result
         logger.info(f"[Task {task_id}] Step 4: Updating task with result...")
+        await db_service.update_task_status(task_id, "processing", stage="saving_result")
         await db_service.update_task_status(
             task_id,
             "completed",
+            stage="completed",
             result=article_data
         )
         logger.info(f"[Task {task_id}] Task completed successfully!")
@@ -179,21 +183,22 @@ async def process_text_task(task_id: str, text: str, translate_to_chinese: bool 
     """Background task to convert manual text content to article JSON."""
     logger.info(f"[Task {task_id}] Starting processing for manual text, length: {len(text)}")
     try:
-        logger.info(f"[Task {task_id}] Updating status to 'processing'")
-        await db_service.update_task_status(task_id, "processing")
-
         logger.info(f"[Task {task_id}] Step 1: Converting manual content to article JSON using LLM...")
+        await db_service.update_task_status(task_id, "processing", stage="converting")
         article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
         logger.info(f"[Task {task_id}] LLM conversion completed successfully")
 
         logger.info(f"[Task {task_id}] Step 2: Processing images...")
+        await db_service.update_task_status(task_id, "processing", stage="processing_images")
         article_data = await process_article_images(article_data)
         logger.info(f"[Task {task_id}] Image processing completed")
 
         logger.info(f"[Task {task_id}] Step 3: Updating task with result...")
+        await db_service.update_task_status(task_id, "processing", stage="saving_result")
         await db_service.update_task_status(
             task_id,
             "completed",
+            stage="completed",
             result=article_data
         )
         logger.info(f"[Task {task_id}] Task completed successfully!")
@@ -212,11 +217,9 @@ async def process_dify_task(
     """Background task to parse a document via Dify and convert to article JSON."""
     logger.info(f"[Task {task_id}] Starting Dify processing")
     try:
-        logger.info(f"[Task {task_id}] Updating status to 'processing'")
-        await db_service.update_task_status(task_id, "processing")
-
         if file_content:
             logger.info(f"[Task {task_id}] Step 1: Uploading file to Dify")
+            await db_service.update_task_status(task_id, "processing", stage="parsing_document")
             text = await dify_service.parse_file(
                 file_content,
                 file_name or "document",
@@ -224,20 +227,25 @@ async def process_dify_task(
             )
         elif source_url:
             logger.info(f"[Task {task_id}] Step 1: Parsing URL via Dify")
+            await db_service.update_task_status(task_id, "processing", stage="parsing_document")
             text = await dify_service.parse_url(source_url)
         else:
             raise Exception("No file or URL provided for Dify parsing")
 
         logger.info(f"[Task {task_id}] Step 2: Converting Dify output to article JSON")
+        await db_service.update_task_status(task_id, "processing", stage="converting")
         article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
 
         logger.info(f"[Task {task_id}] Step 3: Processing images")
+        await db_service.update_task_status(task_id, "processing", stage="processing_images")
         article_data = await process_article_images(article_data)
 
         logger.info(f"[Task {task_id}] Step 4: Updating task with result")
+        await db_service.update_task_status(task_id, "processing", stage="saving_result")
         await db_service.update_task_status(
             task_id,
             "completed",
+            stage="completed",
             result=article_data
         )
         logger.info(f"[Task {task_id}] Task completed successfully!")

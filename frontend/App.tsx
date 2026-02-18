@@ -25,6 +25,7 @@ interface TaskResponse {
   id: string;
   url: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  stage?: string | null;
   source_type?: 'url' | 'text' | 'dify';
   result: ArticleData | null;
   error: string | null;
@@ -32,11 +33,29 @@ interface TaskResponse {
   updated_at: string | null;
 }
 
+const getProcessingMessage = (
+  stage: string | null,
+  sourceType: 'url' | 'text' | 'dify' | null
+) => {
+  if (stage === 'crawling') return '正在爬虫抓取页面...';
+  if (stage === 'parsing_document') return '正在解析文档内容...';
+  if (stage === 'converting') return '正在提取关键信息并生成结构...';
+  if (stage === 'processing_images') return '正在处理并上传图片资源...';
+  if (stage === 'saving_result') return '正在保存任务结果...';
+  if (stage === 'completed') return '处理完成，正在加载结果...';
+  if (stage === 'failed') return '任务执行失败...';
+
+  if (sourceType === 'text') return '正在转换文本内容...';
+  if (sourceType === 'dify') return '正在解析文档内容...';
+  return '正在爬取和转换文章...';
+};
+
 export default function App() {
   const [articleData, setArticleData] = useState<ArticleData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [taskStatus, setTaskStatus] = useState<string | null>(null);
+  const [taskStage, setTaskStage] = useState<string | null>(null);
   const [articleUrl, setArticleUrl] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<'url' | 'text' | 'dify' | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -98,6 +117,7 @@ export default function App() {
 
         const task: TaskResponse = await response.json();
         setTaskStatus(task.status);
+        setTaskStage(task.stage || null);
 
         const normalizedSourceType = task.source_type || (isManualUrl(task.url) ? 'text' : 'url');
         if (task.url && !isManualUrl(task.url)) {
@@ -111,6 +131,7 @@ export default function App() {
           setArticleData(task.result);
           setLoading(false);
           setTaskStatus(null);
+          setTaskStage(null);
           return;
         }
 
@@ -125,6 +146,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : 'Unknown error');
         setLoading(false);
         setTaskStatus(null);
+        setTaskStage(null);
         return;
       }
     }
@@ -133,6 +155,7 @@ export default function App() {
     setError('Task timeout: processing took too long');
     setLoading(false);
     setTaskStatus(null);
+    setTaskStage(null);
   }, []);
 
   // 创建或获取任务
@@ -140,6 +163,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setTaskStatus('creating');
+    setTaskStage(null);
     setArticleUrl(url);
     setSourceType('url');
     setTaskId(null);
@@ -166,6 +190,7 @@ export default function App() {
         setArticleData(task.result);
         setLoading(false);
         setTaskStatus(null);
+        setTaskStage(null);
         return;
       }
 
@@ -179,6 +204,7 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setLoading(false);
       setTaskStatus(null);
+      setTaskStage(null);
     }
   }, [pollTaskStatus, updateBrowserUrl]);
 
@@ -187,6 +213,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setTaskStatus('creating');
+    setTaskStage(null);
     setArticleUrl(null);
     setSourceType('text');
     setTaskId(null);
@@ -215,6 +242,7 @@ export default function App() {
         setArticleData(task.result);
         setLoading(false);
         setTaskStatus(null);
+        setTaskStage(null);
         return;
       }
 
@@ -228,6 +256,7 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setLoading(false);
       setTaskStatus(null);
+      setTaskStage(null);
     }
   }, [pollTaskStatus, updateBrowserUrl]);
 
@@ -237,6 +266,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setTaskStatus('creating');
+    setTaskStage(null);
     setArticleUrl(payload.url || null);
     setSourceType('dify');
     setTaskId(null);
@@ -273,6 +303,7 @@ export default function App() {
         setArticleData(task.result);
         setLoading(false);
         setTaskStatus(null);
+        setTaskStage(null);
         return;
       }
 
@@ -285,6 +316,7 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setLoading(false);
       setTaskStatus(null);
+      setTaskStage(null);
     }
   }, [pollTaskStatus, updateBrowserUrl]);
 
@@ -293,6 +325,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setTaskStatus('loading');
+    setTaskStage(null);
     setTaskId(id);
     setShareCopied(false);
     setShowInput(false);
@@ -309,6 +342,7 @@ export default function App() {
       const task: TaskResponse = await response.json();
       setTaskId(task.id);
       setTaskStatus(task.status);
+      setTaskStage(task.stage || null);
 
       const normalizedSourceType = task.source_type || (isManualUrl(task.url) ? 'text' : 'url');
       if (task.url && !isManualUrl(task.url)) {
@@ -328,6 +362,7 @@ export default function App() {
         setArticleData(task.result);
         setLoading(false);
         setTaskStatus(null);
+        setTaskStage(null);
         return;
       }
 
@@ -341,6 +376,7 @@ export default function App() {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setLoading(false);
       setTaskStatus(null);
+      setTaskStage(null);
     }
   }, [pollTaskStatus, updateBrowserUrl]);
 
@@ -401,6 +437,7 @@ export default function App() {
     setArticleUrl(null);
     setSourceType(null);
     setTaskId(null);
+    setTaskStage(null);
     setShareCopied(false);
     setShowDifyModal(false);
     // 清除地址栏参数
@@ -680,11 +717,7 @@ export default function App() {
             {taskStatus === 'creating' && '创建任务中...'}
             {taskStatus === 'pending' && '等待处理...'}
             {taskStatus === 'processing' && (
-              sourceType === 'text'
-                ? '正在转换文本内容...'
-                : sourceType === 'dify'
-                  ? '正在解析文档内容...'
-                  : '正在爬取和转换文章...'
+              getProcessingMessage(taskStage, sourceType)
             )}
           </p>
           {sourceType === 'url' && articleUrl && (

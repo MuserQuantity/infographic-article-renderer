@@ -3,7 +3,7 @@ from urllib.parse import quote
 from typing import Optional
 from datetime import datetime
 from app.config import get_settings
-from app.models import Task, ArticleData, TaskStatus, TaskSourceType
+from app.models import Task, ArticleData, TaskStatus, TaskSourceType, TaskStage
 
 MANUAL_URL_PREFIX = "https://manual.local/"
 BILIBILI_VIDEO_PREFIX = "https://www.bilibili.com/video/"
@@ -184,6 +184,7 @@ class PocketBaseService:
             id=record.get("id"),
             url=record.get("url", ""),
             status=record.get("status", "pending"),
+            stage=record.get("stage"),
             source_type=source_type,
             result=result_data,
             error=record.get("error"),
@@ -271,11 +272,14 @@ class PocketBaseService:
         self,
         task_id: str,
         status: TaskStatus,
+        stage: TaskStage = None,
         result: Optional[ArticleData] = None,
         error: Optional[str] = None
     ) -> Task:
         """Update task status and result."""
         data = {"status": status}
+        if stage is not None:
+            data["stage"] = stage
 
         if result is not None:
             data["result"] = result.model_dump()
@@ -283,11 +287,28 @@ class PocketBaseService:
         if error is not None:
             data["error"] = error
 
-        response = await self._request(
-            "PATCH",
-            f"{self.api_url}/{task_id}",
-            json_data=data
-        )
+        try:
+            response = await self._request(
+                "PATCH",
+                f"{self.api_url}/{task_id}",
+                json_data=data
+            )
+        except httpx.HTTPStatusError as e:
+            # 兼容旧 schema：可能尚未创建 stage 字段
+            if (
+                "stage" in data
+                and e.response is not None
+                and e.response.status_code == 400
+                and "stage" in (e.response.text or "").lower()
+            ):
+                fallback_data = {key: value for key, value in data.items() if key != "stage"}
+                response = await self._request(
+                    "PATCH",
+                    f"{self.api_url}/{task_id}",
+                    json_data=fallback_data
+                )
+            else:
+                raise
         return self._parse_task(response)
 
     async def delete_task(self, task_id: str) -> bool:

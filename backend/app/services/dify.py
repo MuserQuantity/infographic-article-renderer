@@ -58,7 +58,7 @@ class DifyService:
                 files=files
             )
 
-        if response.status_code != 200:
+        if response.status_code not in (200, 201):
             logger.error(
                 "Dify upload failed: status=%s body=%s",
                 response.status_code,

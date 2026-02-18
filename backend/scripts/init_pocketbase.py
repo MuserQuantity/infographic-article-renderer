@@ -82,7 +82,9 @@ def init_pocketbase():
         timeout=30.0
     )
 
-    existing_collections = [c["name"] for c in collections_response.json().get("items", [])]
+    collection_items = collections_response.json().get("items", [])
+    existing_collections = [c["name"] for c in collection_items]
+    collection_map = {c["name"]: c for c in collection_items}
 
     # 3. Create infographic_tasks collection if not exists
     if "infographic_tasks" not in existing_collections:
@@ -110,12 +112,29 @@ def init_pocketbase():
                     }
                 },
                 {
+                    "name": "stage",
+                    "type": "select",
+                    "required": False,
+                    "options": {
+                        "maxSelect": 1,
+                        "values": [
+                            "crawling",
+                            "parsing_document",
+                            "converting",
+                            "processing_images",
+                            "saving_result",
+                            "completed",
+                            "failed"
+                        ]
+                    }
+                },
+                {
                     "name": "source_type",
                     "type": "select",
                     "required": False,
                     "options": {
                         "maxSelect": 1,
-                        "values": ["url", "text"]
+                        "values": ["url", "text", "dify"]
                     }
                 },
                 {
@@ -161,6 +180,24 @@ def init_pocketbase():
             print(f"Failed to create collection: {create_response.text}")
     else:
         print("Collection 'infographic_tasks' already exists. Skipping.")
+        existing_tasks_collection = collection_map.get("infographic_tasks", {})
+        existing_fields = {
+            field.get("name"): field for field in existing_tasks_collection.get("schema", [])
+        }
+
+        if "stage" not in existing_fields:
+            print(
+                "Warning: 'infographic_tasks.stage' field is missing. "
+                "Add optional select field `stage` to enable detailed progress status."
+            )
+
+        source_type_field = existing_fields.get("source_type") or {}
+        source_type_values = source_type_field.get("options", {}).get("values", [])
+        if source_type_values and "dify" not in source_type_values:
+            print(
+                "Warning: 'infographic_tasks.source_type' missing value `dify`. "
+                "Add it in PocketBase to preserve Dify source labels."
+            )
 
     # 4. Create infographic_images collection for image storage
     if "infographic_images" not in existing_collections:
