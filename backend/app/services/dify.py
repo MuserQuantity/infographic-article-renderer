@@ -109,6 +109,24 @@ class DifyService:
         )
         return payload
 
+    @staticmethod
+    def _should_retry_with_file_array(error: Exception) -> bool:
+        message = str(error).lower()
+        return "must be a list" in message or "must be an array" in message
+
+    async def _run_workflow_with_file_input(self, file_input: dict) -> dict:
+        """
+        Prefer single-file object for `file` variables.
+        If workflow expects `array[file]`, retry with list wrapper.
+        """
+        try:
+            return await self.run_workflow({"file": file_input})
+        except Exception as error:
+            if not self._should_retry_with_file_array(error):
+                raise
+            logger.info("Retrying Dify workflow with array[file] payload for key `file`")
+            return await self.run_workflow({"file": [file_input]})
+
     def extract_text(self, payload: dict) -> str:
         data = payload.get("data") or {}
         status = data.get("status")
@@ -129,24 +147,18 @@ class DifyService:
 
     async def parse_file(self, content: bytes, filename: str, content_type: Optional[str]) -> str:
         upload_id = await self.upload_file(content, filename, content_type)
-        payload = await self.run_workflow({
-            "file": [
-                {
-                    "transfer_method": "local_file",
-                    "upload_file_id": upload_id,
-                    "type": "document"
-                }
-            ]
+        payload = await self._run_workflow_with_file_input({
+            "transfer_method": "local_file",
+            "upload_file_id": upload_id,
+            "type": "document"
         })
         return self.extract_text(payload)
 
     async def parse_url(self, url: str) -> str:
-        payload = await self.run_workflow({
-            "file": {
-                "transfer_method": "remote_url",
-                "url": url,
-                "type": "document"
-            }
+        payload = await self._run_workflow_with_file_input({
+            "transfer_method": "remote_url",
+            "url": url,
+            "type": "document"
         })
         return self.extract_text(payload)
 
