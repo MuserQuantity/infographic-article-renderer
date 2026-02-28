@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 import httpx
@@ -19,10 +20,13 @@ from app.services.crawler import crawler_service
 from app.services.llm import llm_service
 from app.services.image_service import image_service
 from app.services.dify import dify_service
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["tasks"])
+_settings = get_settings()
+TASK_TIMEOUT_SECONDS = _settings.task_timeout_seconds if _settings.task_timeout_seconds > 0 else None
 MANUAL_URL_PREFIX = "https://manual.local/"
 HTTP_URL_ADAPTER = TypeAdapter(HttpUrl)
 
@@ -142,69 +146,146 @@ async def create_and_start_text_task(
     return task_to_response(task)
 
 
+async def _process_task_inner(task_id: str, url: str, translate_to_chinese: bool = True):
+    """Inner task logic without timeout wrapper."""
+    # Step 1: Crawl the URL
+    logger.info(f"[Task {task_id}] Step 1: Crawling URL...")
+    await db_service.update_task_status(task_id, "processing", stage="crawling")
+    markdown_content = await crawler_service.crawl_url(url)
+    logger.info(f"[Task {task_id}] Crawl completed, content length: {len(markdown_content)}")
+
+    # Step 2: Convert to article JSON using LLM
+    logger.info(f"[Task {task_id}] Step 2: Converting to article JSON using LLM...")
+    await db_service.update_task_status(task_id, "processing", stage="converting")
+    article_data = await llm_service.convert_to_article_json(markdown_content, translate_to_chinese)
+    logger.info(f"[Task {task_id}] LLM conversion completed successfully")
+
+    # Step 3: Process images (download and upload to PocketBase)
+    logger.info(f"[Task {task_id}] Step 3: Processing images...")
+    await db_service.update_task_status(task_id, "processing", stage="processing_images")
+    article_data = await process_article_images(article_data)
+    logger.info(f"[Task {task_id}] Image processing completed")
+
+    # Step 4: Update task with result
+    logger.info(f"[Task {task_id}] Step 4: Updating task with result...")
+    await db_service.update_task_status(task_id, "processing", stage="saving_result")
+    await db_service.update_task_status(
+        task_id,
+        "completed",
+        stage="completed",
+        result=article_data
+    )
+    logger.info(f"[Task {task_id}] Task completed successfully!")
+
+
 async def process_task(task_id: str, url: str, translate_to_chinese: bool = True):
-    """Background task to crawl URL and convert to article JSON."""
+    """Background task to crawl URL and convert to article JSON, with overall timeout."""
     logger.info(f"[Task {task_id}] Starting processing for URL: {url}")
     try:
-        # Step 1: Crawl the URL
-        logger.info(f"[Task {task_id}] Step 1: Crawling URL...")
-        await db_service.update_task_status(task_id, "processing", stage="crawling")
-        markdown_content = await crawler_service.crawl_url(url)
-        logger.info(f"[Task {task_id}] Crawl completed, content length: {len(markdown_content)}")
-
-        # Step 2: Convert to article JSON using LLM
-        logger.info(f"[Task {task_id}] Step 2: Converting to article JSON using LLM...")
-        await db_service.update_task_status(task_id, "processing", stage="converting")
-        article_data = await llm_service.convert_to_article_json(markdown_content, translate_to_chinese)
-        logger.info(f"[Task {task_id}] LLM conversion completed successfully")
-
-        # Step 3: Process images (download and upload to PocketBase)
-        logger.info(f"[Task {task_id}] Step 3: Processing images...")
-        await db_service.update_task_status(task_id, "processing", stage="processing_images")
-        article_data = await process_article_images(article_data)
-        logger.info(f"[Task {task_id}] Image processing completed")
-
-        # Step 4: Update task with result
-        logger.info(f"[Task {task_id}] Step 4: Updating task with result...")
-        await db_service.update_task_status(task_id, "processing", stage="saving_result")
-        await db_service.update_task_status(
+        if TASK_TIMEOUT_SECONDS is not None:
+            logger.info(f"[Task {task_id}] Task timeout: {TASK_TIMEOUT_SECONDS:.0f}s")
+            await asyncio.wait_for(
+                _process_task_inner(task_id, url, translate_to_chinese),
+                timeout=TASK_TIMEOUT_SECONDS
+            )
+        else:
+            await _process_task_inner(task_id, url, translate_to_chinese)
+    except asyncio.TimeoutError:
+        logger.error(f"[Task {task_id}] Task timed out after {TASK_TIMEOUT_SECONDS}s")
+        await handle_task_failure(
             task_id,
-            "completed",
-            stage="completed",
-            result=article_data
+            Exception(f"Task timeout: processing took too long (>{TASK_TIMEOUT_SECONDS:.0f}s)")
         )
-        logger.info(f"[Task {task_id}] Task completed successfully!")
-
     except Exception as e:
         await handle_task_failure(task_id, e)
+
+
+async def _process_text_task_inner(task_id: str, text: str, translate_to_chinese: bool = True):
+    """Inner text task logic without timeout wrapper."""
+    logger.info(f"[Task {task_id}] Step 1: Converting manual content to article JSON using LLM...")
+    await db_service.update_task_status(task_id, "processing", stage="converting")
+    article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
+    logger.info(f"[Task {task_id}] LLM conversion completed successfully")
+
+    logger.info(f"[Task {task_id}] Step 2: Processing images...")
+    await db_service.update_task_status(task_id, "processing", stage="processing_images")
+    article_data = await process_article_images(article_data)
+    logger.info(f"[Task {task_id}] Image processing completed")
+
+    logger.info(f"[Task {task_id}] Step 3: Updating task with result...")
+    await db_service.update_task_status(task_id, "processing", stage="saving_result")
+    await db_service.update_task_status(
+        task_id,
+        "completed",
+        stage="completed",
+        result=article_data
+    )
+    logger.info(f"[Task {task_id}] Task completed successfully!")
 
 
 async def process_text_task(task_id: str, text: str, translate_to_chinese: bool = True):
-    """Background task to convert manual text content to article JSON."""
+    """Background task to convert manual text content to article JSON, with overall timeout."""
     logger.info(f"[Task {task_id}] Starting processing for manual text, length: {len(text)}")
     try:
-        logger.info(f"[Task {task_id}] Step 1: Converting manual content to article JSON using LLM...")
-        await db_service.update_task_status(task_id, "processing", stage="converting")
-        article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
-        logger.info(f"[Task {task_id}] LLM conversion completed successfully")
-
-        logger.info(f"[Task {task_id}] Step 2: Processing images...")
-        await db_service.update_task_status(task_id, "processing", stage="processing_images")
-        article_data = await process_article_images(article_data)
-        logger.info(f"[Task {task_id}] Image processing completed")
-
-        logger.info(f"[Task {task_id}] Step 3: Updating task with result...")
-        await db_service.update_task_status(task_id, "processing", stage="saving_result")
-        await db_service.update_task_status(
+        if TASK_TIMEOUT_SECONDS is not None:
+            logger.info(f"[Task {task_id}] Task timeout: {TASK_TIMEOUT_SECONDS:.0f}s")
+            await asyncio.wait_for(
+                _process_text_task_inner(task_id, text, translate_to_chinese),
+                timeout=TASK_TIMEOUT_SECONDS
+            )
+        else:
+            await _process_text_task_inner(task_id, text, translate_to_chinese)
+    except asyncio.TimeoutError:
+        logger.error(f"[Task {task_id}] Task timed out after {TASK_TIMEOUT_SECONDS}s")
+        await handle_task_failure(
             task_id,
-            "completed",
-            stage="completed",
-            result=article_data
+            Exception(f"Task timeout: processing took too long (>{TASK_TIMEOUT_SECONDS:.0f}s)")
         )
-        logger.info(f"[Task {task_id}] Task completed successfully!")
-
     except Exception as e:
         await handle_task_failure(task_id, e)
+
+async def _process_dify_task_inner(
+    task_id: str,
+    translate_to_chinese: bool,
+    file_content: bytes | None = None,
+    file_name: str | None = None,
+    file_type: str | None = None,
+    source_url: str | None = None
+):
+    """Inner Dify task logic without timeout wrapper."""
+    if file_content:
+        logger.info(f"[Task {task_id}] Step 1: Uploading file to Dify")
+        await db_service.update_task_status(task_id, "processing", stage="parsing_document")
+        text = await dify_service.parse_file(
+            file_content,
+            file_name or "document",
+            file_type
+        )
+    elif source_url:
+        logger.info(f"[Task {task_id}] Step 1: Parsing URL via Dify")
+        await db_service.update_task_status(task_id, "processing", stage="parsing_document")
+        text = await dify_service.parse_url(source_url)
+    else:
+        raise Exception("No file or URL provided for Dify parsing")
+
+    logger.info(f"[Task {task_id}] Step 2: Converting Dify output to article JSON")
+    await db_service.update_task_status(task_id, "processing", stage="converting")
+    article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
+
+    logger.info(f"[Task {task_id}] Step 3: Processing images")
+    await db_service.update_task_status(task_id, "processing", stage="processing_images")
+    article_data = await process_article_images(article_data)
+
+    logger.info(f"[Task {task_id}] Step 4: Updating task with result")
+    await db_service.update_task_status(task_id, "processing", stage="saving_result")
+    await db_service.update_task_status(
+        task_id,
+        "completed",
+        stage="completed",
+        result=article_data
+    )
+    logger.info(f"[Task {task_id}] Task completed successfully!")
+
 
 async def process_dify_task(
     task_id: str,
@@ -214,42 +295,29 @@ async def process_dify_task(
     file_type: str | None = None,
     source_url: str | None = None
 ):
-    """Background task to parse a document via Dify and convert to article JSON."""
+    """Background task to parse a document via Dify and convert to article JSON, with overall timeout."""
     logger.info(f"[Task {task_id}] Starting Dify processing")
     try:
-        if file_content:
-            logger.info(f"[Task {task_id}] Step 1: Uploading file to Dify")
-            await db_service.update_task_status(task_id, "processing", stage="parsing_document")
-            text = await dify_service.parse_file(
-                file_content,
-                file_name or "document",
-                file_type
+        if TASK_TIMEOUT_SECONDS is not None:
+            logger.info(f"[Task {task_id}] Task timeout: {TASK_TIMEOUT_SECONDS:.0f}s")
+            await asyncio.wait_for(
+                _process_dify_task_inner(
+                    task_id, translate_to_chinese,
+                    file_content, file_name, file_type, source_url
+                ),
+                timeout=TASK_TIMEOUT_SECONDS
             )
-        elif source_url:
-            logger.info(f"[Task {task_id}] Step 1: Parsing URL via Dify")
-            await db_service.update_task_status(task_id, "processing", stage="parsing_document")
-            text = await dify_service.parse_url(source_url)
         else:
-            raise Exception("No file or URL provided for Dify parsing")
-
-        logger.info(f"[Task {task_id}] Step 2: Converting Dify output to article JSON")
-        await db_service.update_task_status(task_id, "processing", stage="converting")
-        article_data = await llm_service.convert_to_article_json(text, translate_to_chinese)
-
-        logger.info(f"[Task {task_id}] Step 3: Processing images")
-        await db_service.update_task_status(task_id, "processing", stage="processing_images")
-        article_data = await process_article_images(article_data)
-
-        logger.info(f"[Task {task_id}] Step 4: Updating task with result")
-        await db_service.update_task_status(task_id, "processing", stage="saving_result")
-        await db_service.update_task_status(
+            await _process_dify_task_inner(
+                task_id, translate_to_chinese,
+                file_content, file_name, file_type, source_url
+            )
+    except asyncio.TimeoutError:
+        logger.error(f"[Task {task_id}] Task timed out after {TASK_TIMEOUT_SECONDS}s")
+        await handle_task_failure(
             task_id,
-            "completed",
-            stage="completed",
-            result=article_data
+            Exception(f"Task timeout: processing took too long (>{TASK_TIMEOUT_SECONDS:.0f}s)")
         )
-        logger.info(f"[Task {task_id}] Task completed successfully!")
-
     except Exception as e:
         await handle_task_failure(task_id, e)
 

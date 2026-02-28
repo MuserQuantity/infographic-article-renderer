@@ -978,6 +978,7 @@ class LLMService:
         self.use_response_format = settings.llm_use_response_format
         self.max_continuations = max(0, settings.llm_max_continuations)
         self.chunk_size = max(5000, settings.llm_chunk_size)
+        self.max_parallel_chunks = max(1, settings.llm_max_parallel_chunks)
         self.total_timeout_seconds = self._calculate_total_timeout()
 
     def _calculate_total_timeout(self) -> Optional[float]:
@@ -1178,6 +1179,37 @@ class LLMService:
 
         return data
 
+    async def _process_single_chunk(
+        self,
+        chunk: str,
+        chunk_num: int,
+        total_chunks: int,
+        language_instruction: str
+    ) -> dict:
+        """处理单个 chunk 并返回解析后的 JSON dict。"""
+        label = f"Chunk {chunk_num}/{total_chunks}"
+        logger.info(f"[{label}] Processing chunk, length={len(chunk)}")
+
+        if chunk_num == 1:
+            user_prompt = USER_PROMPT_TEMPLATE.format(
+                language_instruction=language_instruction,
+                content=chunk
+            )
+        else:
+            user_prompt = CHUNK_USER_PROMPT_TEMPLATE.format(
+                chunk_index=chunk_num,
+                total_chunks=total_chunks,
+                language_instruction=language_instruction,
+                content=chunk
+            )
+
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        return await self._call_llm_and_parse_json(messages, len(chunk), label=label)
+
     async def _convert_chunked(
         self,
         markdown_content: str,
@@ -1186,56 +1218,58 @@ class LLMService:
         """
         分块处理长文章：将 markdown 拆分成多个块，分别调用 LLM 转换，最后合并结果。
         第一块提取 title/subtitle/meta + sections，后续块只提取 sections。
+        后续块使用 asyncio.Semaphore 进行并行处理以加快速度。
         """
         chunks = split_markdown_into_chunks(markdown_content, self.chunk_size)
         language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
+        total_chunks = len(chunks)
 
-        all_sections: list[dict] = []
-        title = ""
-        subtitle = None
-        meta = None
+        logger.info(
+            "Chunked processing: %d chunks, max_parallel=%d",
+            total_chunks,
+            self.max_parallel_chunks
+        )
 
-        for i, chunk in enumerate(chunks):
-            chunk_num = i + 1
-            label = f"Chunk {chunk_num}/{len(chunks)}"
-            logger.info(f"[{label}] Processing chunk, length={len(chunk)}")
+        # 第一块同步处理，获取 title/subtitle/meta
+        first_data = await self._process_single_chunk(
+            chunks[0], 1, total_chunks, language_instruction
+        )
+        title = first_data.get("title", "")
+        subtitle = first_data.get("subtitle")
+        meta = first_data.get("meta")
+        all_sections: list[dict] = first_data.get("sections", [])
+        logger.info(f"[Chunk 1/{total_chunks}] Got {len(all_sections)} sections")
 
-            if chunk_num == 1:
-                # 第一块：使用完整的 prompt 获取 title/subtitle/meta + sections
-                user_prompt = USER_PROMPT_TEMPLATE.format(
-                    language_instruction=language_instruction,
-                    content=chunk
-                )
-            else:
-                # 后续块：只需要 sections
-                user_prompt = CHUNK_USER_PROMPT_TEMPLATE.format(
-                    chunk_index=chunk_num,
-                    total_chunks=len(chunks),
-                    language_instruction=language_instruction,
-                    content=chunk
-                )
+        # 后续块并行处理（使用 semaphore 控制并发数）
+        if total_chunks > 1:
+            semaphore = asyncio.Semaphore(self.max_parallel_chunks)
 
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
+            async def process_with_semaphore(chunk: str, chunk_num: int) -> dict:
+                async with semaphore:
+                    return await self._process_single_chunk(
+                        chunk, chunk_num, total_chunks, language_instruction
+                    )
+
+            tasks = [
+                process_with_semaphore(chunks[i], i + 1)
+                for i in range(1, total_chunks)
             ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            data = await self._call_llm_and_parse_json(messages, len(chunk), label=label)
-
-            # 从第一块提取 title/subtitle/meta
-            if chunk_num == 1:
-                title = data.get("title", "")
-                subtitle = data.get("subtitle")
-                meta = data.get("meta")
-
-            # 收集所有 sections
-            chunk_sections = data.get("sections", [])
-            logger.info(f"[{label}] Got {len(chunk_sections)} sections")
-            all_sections.extend(chunk_sections)
+            # 按顺序合并结果
+            for i, result in enumerate(results):
+                chunk_num = i + 2  # 从第2块开始
+                label = f"Chunk {chunk_num}/{total_chunks}"
+                if isinstance(result, Exception):
+                    logger.error(f"[{label}] Failed: {result}")
+                    raise result
+                chunk_sections = result.get("sections", [])
+                logger.info(f"[{label}] Got {len(chunk_sections)} sections")
+                all_sections.extend(chunk_sections)
 
         logger.info(
             "Chunked processing complete: %d chunks -> %d total sections",
-            len(chunks),
+            total_chunks,
             len(all_sections)
         )
 
@@ -1315,6 +1349,9 @@ class LLMService:
             "Connection error": "网络连接错误，请检查网络后重试",
             "Internal Server Error": "LLM 服务内部错误，请稍后重试",
             "Continue mode: reached max continuations": "AI 输出内容过长，已达到最大续写次数，结果可能不完整",
+            "Task timeout: processing took too long": "任务处理超时，请稍后重试",
+            "Crawl timed out": "网页抓取超时，页面加载过慢或不可用，请稍后重试",
+            "Cannot connect to crawl service": "爬虫服务未运行，请检查 Crawl4AI 服务状态",
         }
 
         # 检查是否匹配已知错误
