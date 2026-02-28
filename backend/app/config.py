@@ -23,10 +23,13 @@ class Settings(BaseSettings):
     llm_retry_max_delay: float = 8.0
     llm_use_response_format: bool = True
     llm_max_continuations: int = 5
-    llm_chunk_size: int = 30000  # 超过此字符数的输入内容将分块处理
+    llm_chunk_size: int = 15000  # 超过此字符数的输入内容将分块处理
+    llm_max_parallel_chunks: int = 3  # 分块处理时最大并行数
 
     # Crawl4AI Configuration
     crawl4ai_url: str = "http://localhost:11235"
+    crawl_timeout_seconds: float = 120.0  # 爬虫 HTTP 请求超时
+    crawl_page_timeout_ms: int = 30000  # 浏览器页面加载超时（毫秒）
 
     # PocketBase Configuration
     pocketbase_url: str = "http://localhost:8090"
@@ -39,6 +42,7 @@ class Settings(BaseSettings):
     dify_user: str = "infographic"
 
     # App Configuration
+    task_timeout_seconds: float = 600.0  # 单个任务的总超时时间（秒），0 表示不限制
     debug: bool = False
 
     class Config:
