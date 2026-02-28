@@ -33,6 +33,7 @@ class CrawlerService:
                             # 模拟真实浏览器
                             "simulate_user": True,
                             "magic": True,
+                            "stream": True
                         }
                     }
                 }
