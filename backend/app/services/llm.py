@@ -428,6 +428,111 @@ KEEP_ORIGINAL_INSTRUCTION = """
 
 【重要】请保持文章的原始语言，不要翻译任何内容。"""
 
+# 分块处理时，后续 chunk 只输出 sections 数组的 prompt
+CHUNK_USER_PROMPT_TEMPLATE = """你正在处理一篇长文章的**第 {chunk_index} 部分（共 {total_chunks} 部分）**。
+
+请将以下文章片段转换为结构化 JSON sections 数组。注意：
+- 只输出 sections 数组部分，不需要 title、subtitle、meta
+- 输出格式为：{{"sections": [...]}}
+- 保持与之前部分相同的排版风格和 ContentBlock 类型选择标准
+- 完整还原本部分所有内容，不要遗漏或压缩
+
+{language_instruction}
+
+请直接输出 JSON，不要包含 Markdown 代码块标记，不要输出任何解释或多余文本。
+
+---
+文章片段（第 {chunk_index}/{total_chunks} 部分）：
+
+{content}"""
+
+
+def split_markdown_into_chunks(content: str, chunk_size: int) -> list[str]:
+    """
+    将 markdown 内容按照标题层级分割成合理大小的块。
+    优先在 # 或 ## 标题处分割，保证每块不超过 chunk_size。
+    """
+    if len(content) <= chunk_size:
+        return [content]
+
+    # 按照标题行分割：匹配 # 或 ## 或 ### 开头的行
+    heading_pattern = re.compile(r'^(#{1,3})\s+', re.MULTILINE)
+    headings = list(heading_pattern.finditer(content))
+
+    if not headings:
+        # 没有标题，按段落分割（双换行）
+        return _split_by_size(content, chunk_size)
+
+    # 在每个标题位置处分割出"节"
+    sections: list[str] = []
+    for i, match in enumerate(headings):
+        start = match.start()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(content)
+        section_text = content[start:end]
+        sections.append(section_text)
+
+    # 如果第一个标题前有内容（如前言），加入
+    if headings[0].start() > 0:
+        preamble = content[:headings[0].start()].strip()
+        if preamble:
+            sections.insert(0, preamble)
+
+    # 将节合并成合理大小的块
+    chunks: list[str] = []
+    current_chunk = ""
+
+    for section in sections:
+        # 如果单个 section 就超过 chunk_size，需要进一步分割
+        if len(section) > chunk_size:
+            # 先把当前积累的块保存
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
+                current_chunk = ""
+            # 对超大 section 进行二次分割
+            sub_chunks = _split_by_size(section, chunk_size)
+            chunks.extend(sub_chunks)
+            continue
+
+        # 如果加上这个 section 会超过 chunk_size，先保存当前块
+        if current_chunk and len(current_chunk) + len(section) > chunk_size:
+            chunks.append(current_chunk.strip())
+            current_chunk = ""
+
+        current_chunk += section
+
+    # 保存最后一个块
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+
+    logger.info(
+        "Split markdown into %d chunks (input_length=%d, chunk_size=%d)",
+        len(chunks),
+        len(content),
+        chunk_size
+    )
+    for i, chunk in enumerate(chunks):
+        logger.info("  Chunk %d/%d: %d chars", i + 1, len(chunks), len(chunk))
+
+    return chunks
+
+
+def _split_by_size(content: str, chunk_size: int) -> list[str]:
+    """按照段落边界分割内容到指定大小。"""
+    paragraphs = content.split('\n\n')
+    chunks: list[str] = []
+    current = ""
+
+    for para in paragraphs:
+        if current and len(current) + len(para) + 2 > chunk_size:
+            chunks.append(current.strip())
+            current = ""
+        current += para + '\n\n'
+
+    if current.strip():
+        chunks.append(current.strip())
+
+    return chunks if chunks else [content]
+
 
 def fix_comparison_rows(data: dict) -> dict:
     """
@@ -872,6 +977,7 @@ class LLMService:
         self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
         self.use_response_format = settings.llm_use_response_format
         self.max_continuations = max(0, settings.llm_max_continuations)
+        self.chunk_size = max(5000, settings.llm_chunk_size)
         self.total_timeout_seconds = self._calculate_total_timeout()
 
     def _calculate_total_timeout(self) -> Optional[float]:
@@ -998,25 +1104,17 @@ class LLMService:
         )
         return full_content
 
-    async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
-        """Convert markdown content to structured ArticleData JSON."""
-        logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={len(markdown_content)}")
-
-        # 根据翻译选项添加相应指令
-        language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
-
-        # 构建 user prompt，把所有指令放在 user message 中
-        user_prompt = USER_PROMPT_TEMPLATE.format(
-            language_instruction=language_instruction,
-            content=markdown_content
-        )
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ]
-
-        logger.debug(f"Calling LLM model: {self.model}")
+    async def _call_llm_and_parse_json(
+        self,
+        messages: list[dict],
+        content_length: int,
+        label: str = "LLM"
+    ) -> dict:
+        """
+        调用 LLM 并解析返回的 JSON，包含 continue 模式和 JSON 修复逻辑。
+        返回解析后的 dict。
+        """
+        logger.debug(f"[{label}] Calling LLM model: {self.model}")
         request_kwargs: dict = {
             "model": self.model,
             "messages": messages,
@@ -1025,58 +1123,158 @@ class LLMService:
         if self.use_response_format:
             request_kwargs["response_format"] = {"type": "json_object"}
 
-        response = await self._call_with_optional_timeout(request_kwargs, len(markdown_content))
+        response = await self._call_with_optional_timeout(request_kwargs, content_length)
 
         content = response.choices[0].message.content
         if not content:
-            logger.error("LLM returned empty response")
-            raise Exception("LLM returned empty response")
+            logger.error(f"[{label}] LLM returned empty response")
+            raise Exception(f"[{label}] LLM returned empty response")
 
         finish_reason = response.choices[0].finish_reason
-        logger.info(f"LLM response received, length={len(content)}, finish_reason={finish_reason}")
-        logger.debug(f"LLM raw response: {content[:500]}...")
+        logger.info(f"[{label}] LLM response received, length={len(content)}, finish_reason={finish_reason}")
+        logger.debug(f"[{label}] LLM raw response: {content[:500]}...")
 
         # 如果输出因 max_tokens 截断（finish_reason='length'），进入 continue 模式
         if finish_reason == "length" and self.max_continuations > 0:
             logger.warning(
-                "LLM output truncated (finish_reason=length), entering continue mode (max_continuations=%d)",
+                "[%s] LLM output truncated (finish_reason=length), entering continue mode (max_continuations=%d)",
+                label,
                 self.max_continuations
             )
-            content = await self._continue_completion(messages, content, len(markdown_content))
-            logger.info(f"Continue mode finished, total content length={len(content)}")
+            content = await self._continue_completion(messages, content, content_length)
+            logger.info(f"[{label}] Continue mode finished, total content length={len(content)}")
 
-        # 提取 JSON 部分（处理 Gemini 等模型在 JSON 前输出思考文本的情况）
+        # 提取 JSON 部分
         content = extract_json_from_response(content)
 
-        # 智能截断检测：即使 finish_reason 不是 'length'，
-        # 如果 JSON 内容本身看起来不完整（花括号不匹配），也尝试续写
+        # 智能截断检测
         if self.max_continuations > 0 and finish_reason != "length" and _is_json_truncated(content):
             logger.warning(
-                "JSON content appears truncated despite finish_reason=%s, "
+                "[%s] JSON content appears truncated despite finish_reason=%s, "
                 "attempting continue mode (max_continuations=%d)",
+                label,
                 finish_reason,
                 self.max_continuations
             )
-            content = await self._continue_completion(messages, content, len(markdown_content))
+            content = await self._continue_completion(messages, content, content_length)
             content = extract_json_from_response(content)
-            logger.info(f"Smart continue mode finished, total content length={len(content)}")
+            logger.info(f"[{label}] Smart continue mode finished, total content length={len(content)}")
 
-        # 首先尝试直接解析
+        # 尝试解析 JSON
         try:
             data = json.loads(content)
         except json.JSONDecodeError as first_error:
-            # 直接解析失败，尝试 JSON 修复
-            logger.warning(f"Initial JSON parse failed: {first_error}")
-            logger.info("Attempting JSON repair...")
+            logger.warning(f"[{label}] Initial JSON parse failed: {first_error}")
+            logger.info(f"[{label}] Attempting JSON repair...")
             repaired_content = repair_json(content)
             try:
                 data = json.loads(repaired_content)
-                logger.info("JSON repair successful!")
-            except json.JSONDecodeError as repair_error:
-                logger.error(f"JSON repair also failed: {repair_error}")
-                logger.error(f"Raw content causing error (first 1500 chars): {content[:1500]}")
-                logger.error(f"Raw content causing error (last 500 chars): {content[-500:]}")
-                raise Exception(f"Failed to parse LLM response as JSON: {first_error}")
+                logger.info(f"[{label}] JSON repair successful!")
+            except json.JSONDecodeError:
+                logger.error(f"[{label}] JSON repair also failed")
+                logger.error(f"[{label}] Raw content (first 1500 chars): {content[:1500]}")
+                logger.error(f"[{label}] Raw content (last 500 chars): {content[-500:]}")
+                raise Exception(f"[{label}] Failed to parse LLM response as JSON: {first_error}")
+
+        return data
+
+    async def _convert_chunked(
+        self,
+        markdown_content: str,
+        translate_to_chinese: bool
+    ) -> dict:
+        """
+        分块处理长文章：将 markdown 拆分成多个块，分别调用 LLM 转换，最后合并结果。
+        第一块提取 title/subtitle/meta + sections，后续块只提取 sections。
+        """
+        chunks = split_markdown_into_chunks(markdown_content, self.chunk_size)
+        language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
+
+        all_sections: list[dict] = []
+        title = ""
+        subtitle = None
+        meta = None
+
+        for i, chunk in enumerate(chunks):
+            chunk_num = i + 1
+            label = f"Chunk {chunk_num}/{len(chunks)}"
+            logger.info(f"[{label}] Processing chunk, length={len(chunk)}")
+
+            if chunk_num == 1:
+                # 第一块：使用完整的 prompt 获取 title/subtitle/meta + sections
+                user_prompt = USER_PROMPT_TEMPLATE.format(
+                    language_instruction=language_instruction,
+                    content=chunk
+                )
+            else:
+                # 后续块：只需要 sections
+                user_prompt = CHUNK_USER_PROMPT_TEMPLATE.format(
+                    chunk_index=chunk_num,
+                    total_chunks=len(chunks),
+                    language_instruction=language_instruction,
+                    content=chunk
+                )
+
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ]
+
+            data = await self._call_llm_and_parse_json(messages, len(chunk), label=label)
+
+            # 从第一块提取 title/subtitle/meta
+            if chunk_num == 1:
+                title = data.get("title", "")
+                subtitle = data.get("subtitle")
+                meta = data.get("meta")
+
+            # 收集所有 sections
+            chunk_sections = data.get("sections", [])
+            logger.info(f"[{label}] Got {len(chunk_sections)} sections")
+            all_sections.extend(chunk_sections)
+
+        logger.info(
+            "Chunked processing complete: %d chunks -> %d total sections",
+            len(chunks),
+            len(all_sections)
+        )
+
+        # 合并结果
+        merged_data: dict = {
+            "title": title,
+            "sections": all_sections
+        }
+        if subtitle:
+            merged_data["subtitle"] = subtitle
+        if meta:
+            merged_data["meta"] = meta
+
+        return merged_data
+
+    async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
+        """Convert markdown content to structured ArticleData JSON."""
+        logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={len(markdown_content)}")
+
+        # 判断是否需要分块处理
+        if len(markdown_content) > self.chunk_size:
+            logger.info(
+                "Content length %d exceeds chunk_size %d, using chunked processing",
+                len(markdown_content),
+                self.chunk_size
+            )
+            data = await self._convert_chunked(markdown_content, translate_to_chinese)
+        else:
+            # 短内容：使用单次调用
+            language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
+            user_prompt = USER_PROMPT_TEMPLATE.format(
+                language_instruction=language_instruction,
+                content=markdown_content
+            )
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ]
+            data = await self._call_llm_and_parse_json(messages, len(markdown_content))
 
         logger.info(f"JSON parsed successfully, sections count: {len(data.get('sections', []))}")
 
