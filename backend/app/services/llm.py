@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import re
 from typing import Optional
 from openai import (
     APIConnectionError,
@@ -74,6 +75,183 @@ def extract_json_from_response(content: str) -> str:
     # 如果无法找到完整的 JSON，返回从 { 开始的内容
     logger.warning("Could not find complete JSON object, returning from first '{'")
     return content[json_start:]
+
+
+def _is_json_truncated(content: str) -> bool:
+    """
+    检查 JSON 内容是否看起来是被截断的（花括号/方括号不匹配）。
+    返回 True 表示内容很可能不完整。
+    """
+    if not content or not content.strip():
+        return False
+
+    brace_count = 0
+    bracket_count = 0
+    in_string = False
+    escape_next = False
+
+    for char in content:
+        if escape_next:
+            escape_next = False
+            continue
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if not in_string:
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+            elif char == '[':
+                bracket_count += 1
+            elif char == ']':
+                bracket_count -= 1
+
+    is_truncated = brace_count > 0 or bracket_count > 0 or in_string
+    if is_truncated:
+        logger.info(
+            "JSON appears truncated: unmatched_braces=%d, unmatched_brackets=%d, in_string=%s",
+            brace_count,
+            bracket_count,
+            in_string
+        )
+    return is_truncated
+
+
+def repair_json(content: str) -> str:
+    """
+    尝试修复常见的 JSON 格式问题：
+    1. 移除控制字符（保留正常的 \n \r \t）
+    2. 修复 JSON 字符串内部的裸换行符
+    3. 移除尾部逗号
+    4. 补全缺失的闭合括号
+    """
+    if not content or not content.strip():
+        return content
+
+    original_length = len(content)
+
+    # Step 1: 移除 JSON 字符串值中的控制字符（U+0000-U+001F 中除了 \t \n \r 以外的）
+    # 这些字符在 JSON 规范中不允许出现在字符串内部
+    def clean_control_chars(s: str) -> str:
+        result = []
+        in_str = False
+        esc = False
+        for ch in s:
+            if esc:
+                result.append(ch)
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                result.append(ch)
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                result.append(ch)
+                continue
+            if in_str and ord(ch) < 32 and ch not in ('\t', '\n', '\r'):
+                # 跳过非法控制字符
+                continue
+            result.append(ch)
+        return ''.join(result)
+
+    content = clean_control_chars(content)
+
+    # Step 2: 修复 JSON 字符串中的裸换行符（在 JSON 字符串内部 \n 必须被转义为 \\n）
+    def fix_newlines_in_strings(s: str) -> str:
+        result = []
+        in_str = False
+        esc = False
+        for ch in s:
+            if esc:
+                result.append(ch)
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                result.append(ch)
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                result.append(ch)
+                continue
+            if in_str and ch == '\n':
+                result.append('\\n')
+                continue
+            if in_str and ch == '\r':
+                result.append('\\r')
+                continue
+            if in_str and ch == '\t':
+                result.append('\\t')
+                continue
+            result.append(ch)
+        return ''.join(result)
+
+    content = fix_newlines_in_strings(content)
+
+    # Step 3: 移除尾部逗号 (trailing commas before } or ])
+    content = re.sub(r',\s*([}\]])', r'\1', content)
+
+    # Step 4: 使用栈追踪嵌套结构，精确补全缺失的闭合括号
+    stack: list[str] = []  # '{' or '['
+    in_string = False
+    escape_next = False
+
+    for char in content:
+        if escape_next:
+            escape_next = False
+            continue
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if not in_string:
+            if char in ('{', '['):
+                stack.append(char)
+            elif char == '}' and stack and stack[-1] == '{':
+                stack.pop()
+            elif char == ']' and stack and stack[-1] == '[':
+                stack.pop()
+
+    # 如果在字符串内部被截断，先关闭字符串
+    if in_string:
+        content += '"'
+        logger.info("JSON repair: closed unterminated string")
+
+    # 按照栈的反序补全缺失的闭合括号
+    if stack:
+        # 移除末尾可能的不完整值
+        content = content.rstrip()
+        # 移除尾部可能残留的逗号或冒号
+        content = content.rstrip(',:')
+        content = content.rstrip()
+
+        # 再次移除尾部逗号（rstrip 后可能新暴露出来的）
+        content = re.sub(r',\s*$', '', content)
+
+        # 按照栈的反序闭合：栈底是最外层，栈顶是最内层
+        closers = ''.join('}' if opener == '{' else ']' for opener in reversed(stack))
+        content += closers
+        bracket_count = sum(1 for c in stack if c == '[')
+        brace_count = sum(1 for c in stack if c == '{')
+        logger.info(
+            "JSON repair: appended %d ']' and %d '}' to close JSON (stack depth=%d)",
+            bracket_count,
+            brace_count,
+            len(stack)
+        )
+
+    if len(content) != original_length:
+        logger.info("JSON repair: content modified (original=%d, repaired=%d)", original_length, len(content))
+
+    return content
+
 
 SYSTEM_PROMPT = """你是一个专业的内容结构化与排版设计助手。你的任务是将输入文章转换为结构化 JSON，并确保输出具有优秀的视觉排版节奏。只输出 JSON，不要输出思维链、解释或任何多余文字。输出必须以 { 开始，以 } 结束。
 
@@ -858,7 +1036,7 @@ class LLMService:
         logger.info(f"LLM response received, length={len(content)}, finish_reason={finish_reason}")
         logger.debug(f"LLM raw response: {content[:500]}...")
 
-        # 如果输出因 max_tokens 截断，进入 continue 模式
+        # 如果输出因 max_tokens 截断（finish_reason='length'），进入 continue 模式
         if finish_reason == "length" and self.max_continuations > 0:
             logger.warning(
                 "LLM output truncated (finish_reason=length), entering continue mode (max_continuations=%d)",
@@ -870,10 +1048,39 @@ class LLMService:
         # 提取 JSON 部分（处理 Gemini 等模型在 JSON 前输出思考文本的情况）
         content = extract_json_from_response(content)
 
+        # 智能截断检测：即使 finish_reason 不是 'length'，
+        # 如果 JSON 内容本身看起来不完整（花括号不匹配），也尝试续写
+        if self.max_continuations > 0 and finish_reason != "length" and _is_json_truncated(content):
+            logger.warning(
+                "JSON content appears truncated despite finish_reason=%s, "
+                "attempting continue mode (max_continuations=%d)",
+                finish_reason,
+                self.max_continuations
+            )
+            content = await self._continue_completion(messages, content, len(markdown_content))
+            content = extract_json_from_response(content)
+            logger.info(f"Smart continue mode finished, total content length={len(content)}")
+
+        # 首先尝试直接解析
         try:
             data = json.loads(content)
-            logger.info(f"JSON parsed successfully, sections count: {len(data.get('sections', []))}")
+        except json.JSONDecodeError as first_error:
+            # 直接解析失败，尝试 JSON 修复
+            logger.warning(f"Initial JSON parse failed: {first_error}")
+            logger.info("Attempting JSON repair...")
+            repaired_content = repair_json(content)
+            try:
+                data = json.loads(repaired_content)
+                logger.info("JSON repair successful!")
+            except json.JSONDecodeError as repair_error:
+                logger.error(f"JSON repair also failed: {repair_error}")
+                logger.error(f"Raw content causing error (first 1500 chars): {content[:1500]}")
+                logger.error(f"Raw content causing error (last 500 chars): {content[-500:]}")
+                raise Exception(f"Failed to parse LLM response as JSON: {first_error}")
 
+        logger.info(f"JSON parsed successfully, sections count: {len(data.get('sections', []))}")
+
+        try:
             # 修正 comparison rows 格式错误
             logger.info("Running fix_comparison_rows...")
             data = fix_comparison_rows(data)
@@ -885,10 +1092,6 @@ class LLMService:
             result = ArticleData(**data)
             logger.info("Validation successful!")
             return result
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parse error: {e}")
-            logger.error(f"Raw content causing error: {content[:1000]}")
-            raise Exception(f"Failed to parse LLM response as JSON: {e}")
         except Exception as e:
             logger.error(f"Validation error: {e}")
             raise Exception(f"Failed to validate article structure: {e}")
