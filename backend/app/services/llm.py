@@ -677,9 +677,6 @@ def normalize_blocks(data: dict) -> dict:
     return data
 
 
-CONTINUE_SYSTEM_PROMPT = """你正在继续之前未完成的 JSON 输出。请从上次中断的地方继续输出，不要重复已有内容，不要添加任何解释或前缀文字。直接从断点处继续输出 JSON 内容。"""
-
-
 class LLMService:
     def __init__(self):
         settings = get_settings()
