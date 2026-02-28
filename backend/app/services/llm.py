@@ -693,6 +693,7 @@ class LLMService:
         self.retry_base_delay = max(0.1, settings.llm_retry_base_delay)
         self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
         self.use_response_format = settings.llm_use_response_format
+        self.max_continuations = max(0, settings.llm_max_continuations)
         self.total_timeout_seconds = self._calculate_total_timeout()
 
     def _calculate_total_timeout(self) -> Optional[float]:
@@ -737,6 +738,88 @@ class LLMService:
                 )
                 await asyncio.sleep(delay)
 
+    async def _call_with_optional_timeout(self, request_kwargs: dict, content_length: int):
+        """Call LLM with optional total timeout wrapper."""
+        if self.total_timeout_seconds is None:
+            return await self._create_chat_completion(**request_kwargs)
+        try:
+            return await asyncio.wait_for(
+                self._create_chat_completion(**request_kwargs),
+                timeout=self.total_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "LLM request timed out after %.1fs (content_length=%s)",
+                self.total_timeout_seconds,
+                content_length
+            )
+            raise Exception(f"LLM request timed out after {self.total_timeout_seconds:.1f}s")
+
+    async def _continue_completion(
+        self,
+        messages: list[dict],
+        accumulated_content: str,
+        content_length: int
+    ) -> str:
+        """
+        当 LLM 输出因 max_tokens 被截断时（finish_reason='length'），
+        自动发送续写请求，将所有部分拼接为完整内容。
+        """
+        full_content = accumulated_content
+
+        for continuation in range(1, self.max_continuations + 1):
+            logger.info(
+                "Continue mode: round %d/%d, accumulated_length=%d",
+                continuation,
+                self.max_continuations,
+                len(full_content)
+            )
+
+            # 构建续写消息：在原始对话的基础上追加已有的 assistant 回复和续写请求
+            continue_messages = messages + [
+                {"role": "assistant", "content": full_content},
+                {"role": "user", "content": "你的 JSON 输出不完整，被截断了。请从断点处继续输出剩余的 JSON 内容，不要重复已有部分，不要添加任何解释文字。"}
+            ]
+
+            continue_kwargs: dict = {
+                "model": self.model,
+                "messages": continue_messages,
+                "temperature": 0.3
+            }
+            # 续写请求不使用 response_format，因为部分 JSON 片段不是合法 JSON
+            # 某些 API 提供商会在 response_format=json_object 时拒绝不完整的输出
+
+            response = await self._call_with_optional_timeout(continue_kwargs, content_length)
+
+            chunk = response.choices[0].message.content
+            if not chunk:
+                logger.warning("Continue mode: received empty response at round %d", continuation)
+                break
+
+            logger.info(
+                "Continue mode: received chunk length=%d at round %d",
+                len(chunk),
+                continuation
+            )
+            full_content += chunk
+
+            finish_reason = response.choices[0].finish_reason
+            if finish_reason != "length":
+                logger.info(
+                    "Continue mode: completed at round %d, finish_reason=%s, total_length=%d",
+                    continuation,
+                    finish_reason,
+                    len(full_content)
+                )
+                return full_content
+
+        logger.warning(
+            "Continue mode: reached max continuations (%d), total_length=%d",
+            self.max_continuations,
+            len(full_content)
+        )
+        return full_content
+
     async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
         """Convert markdown content to structured ArticleData JSON."""
         logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={len(markdown_content)}")
@@ -750,41 +833,39 @@ class LLMService:
             content=markdown_content
         )
 
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+
         logger.debug(f"Calling LLM model: {self.model}")
-        request_kwargs = {
+        request_kwargs: dict = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
+            "messages": messages,
             "temperature": 0.3
         }
         if self.use_response_format:
             request_kwargs["response_format"] = {"type": "json_object"}
 
-        if self.total_timeout_seconds is None:
-            response = await self._create_chat_completion(**request_kwargs)
-        else:
-            try:
-                response = await asyncio.wait_for(
-                    self._create_chat_completion(**request_kwargs),
-                    timeout=self.total_timeout_seconds
-                )
-            except asyncio.TimeoutError:
-                logger.error(
-                    "LLM request timed out after %.1fs (content_length=%s)",
-                    self.total_timeout_seconds,
-                    len(markdown_content)
-                )
-                raise Exception(f"LLM request timed out after {self.total_timeout_seconds:.1f}s")
+        response = await self._call_with_optional_timeout(request_kwargs, len(markdown_content))
 
         content = response.choices[0].message.content
         if not content:
             logger.error("LLM returned empty response")
             raise Exception("LLM returned empty response")
 
-        logger.info(f"LLM response received, length={len(content)}")
+        finish_reason = response.choices[0].finish_reason
+        logger.info(f"LLM response received, length={len(content)}, finish_reason={finish_reason}")
         logger.debug(f"LLM raw response: {content[:500]}...")
+
+        # 如果输出因 max_tokens 截断，进入 continue 模式
+        if finish_reason == "length" and self.max_continuations > 0:
+            logger.warning(
+                "LLM output truncated (finish_reason=length), entering continue mode (max_continuations=%d)",
+                self.max_continuations
+            )
+            content = await self._continue_completion(messages, content, len(markdown_content))
+            logger.info(f"Continue mode finished, total content length={len(content)}")
 
         # 提取 JSON 部分（处理 Gemini 等模型在 JSON 前输出思考文本的情况）
         content = extract_json_from_response(content)
@@ -832,6 +913,7 @@ class LLMService:
             "Connection refused": "服务连接失败，请稍后重试",
             "Connection error": "网络连接错误，请检查网络后重试",
             "Internal Server Error": "LLM 服务内部错误，请稍后重试",
+            "Continue mode: reached max continuations": "AI 输出内容过长，已达到最大续写次数，结果可能不完整",
         }
 
         # 检查是否匹配已知错误

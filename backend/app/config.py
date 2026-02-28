@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     llm_retry_base_delay: float = 1.0
     llm_retry_max_delay: float = 8.0
     llm_use_response_format: bool = True
+    llm_max_continuations: int = 5
 
     # Crawl4AI Configuration
     crawl4ai_url: str = "http://localhost:11235"
