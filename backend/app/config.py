@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # Crawl4AI Configuration
     crawl4ai_url: str = "http://localhost:11235"
-    crawl_timeout_seconds: float = 120.0  # 爬虫 HTTP 请求超时
+    crawl_timeout_seconds: float = 180.0  # 爬虫 HTTP 请求超时（硬超时，asyncio.wait_for）
     crawl_page_timeout_ms: int = 30000  # 浏览器页面加载超时（毫秒）
 
     # PocketBase Configuration
