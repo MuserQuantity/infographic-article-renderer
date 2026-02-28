@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     llm_retry_max_delay: float = 8.0
     llm_use_response_format: bool = True
     llm_max_continuations: int = 5
+    llm_chunk_size: int = 30000  # 超过此字符数的输入内容将分块处理
 
     # Crawl4AI Configuration
     crawl4ai_url: str = "http://localhost:11235"
