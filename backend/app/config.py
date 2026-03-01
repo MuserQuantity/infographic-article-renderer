@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     crawl4ai_url: str = "http://localhost:11235"
     crawl_timeout_seconds: float = 180.0  # 爬虫 HTTP 请求超时（硬超时，asyncio.wait_for）
     crawl_page_timeout_ms: int = 30000  # 浏览器页面加载超时（毫秒）
+    crawl_content_max_length: int = 50000  # 爬取内容最大字符数，超过则智能截断（0 表示不限制）
 
     # PocketBase Configuration
     pocketbase_url: str = "http://localhost:8090"
