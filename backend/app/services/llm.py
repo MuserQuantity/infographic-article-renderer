@@ -428,14 +428,18 @@ KEEP_ORIGINAL_INSTRUCTION = """
 
 【重要】请保持文章的原始语言，不要翻译任何内容。"""
 
-# 分块处理时，后续 chunk 只输出 sections 数组的 prompt
+# 分块处理时，后续 chunk 带上下文的 prompt
 CHUNK_USER_PROMPT_TEMPLATE = """你正在处理一篇长文章的**第 {chunk_index} 部分（共 {total_chunks} 部分）**。
+
+【上一部分的处理结果摘要】
+{previous_context}
 
 请将以下文章片段转换为结构化 JSON sections 数组。注意：
 - 只输出 sections 数组部分，不需要 title、subtitle、meta
 - 输出格式为：{{"sections": [...]}}
 - 保持与之前部分相同的排版风格和 ContentBlock 类型选择标准
 - 完整还原本部分所有内容，不要遗漏或压缩
+- 注意与上一部分的内容衔接，避免重复上一部分已覆盖的内容
 
 {language_instruction}
 
@@ -1217,12 +1221,51 @@ class LLMService:
 
         return data
 
+    @staticmethod
+    def _build_context_summary(previous_data: dict) -> str:
+        """
+        从上一个 chunk 的 LLM 输出中提取摘要，作为下一个 chunk 的上下文。
+        包含最后 1-2 个 section 的标题和内容概要，帮助 LLM 保持语义连贯。
+        """
+        sections = previous_data.get("sections", [])
+        if not sections:
+            return "（上一部分未生成有效内容）"
+
+        # 取最后 2 个 section 作为上下文
+        context_sections = sections[-2:] if len(sections) >= 2 else sections
+        summary_parts: list[str] = []
+
+        for sec in context_sections:
+            title = sec.get("title", "无标题")
+            # 提取 section 内容的关键文本（前 200 字符）
+            content_texts: list[str] = []
+            for block in sec.get("content", []):
+                block_type = block.get("type", "")
+                if block_type == "paragraph":
+                    content_texts.append(block.get("text", "")[:100])
+                elif block_type in ("highlight", "quote"):
+                    content_texts.append(block.get("text", "")[:80])
+                elif block_type == "list":
+                    items = block.get("items", [])
+                    if items:
+                        content_texts.append(f"列表: {items[0][:50]}... 共{len(items)}项")
+                elif block_type == "stat":
+                    stat_items = block.get("items", [])
+                    if stat_items:
+                        content_texts.append(f"数据: {stat_items[0].get('label', '')}={stat_items[0].get('value', '')}")
+
+            content_preview = " | ".join(content_texts[:3]) if content_texts else "（内容块）"
+            summary_parts.append(f"- 章节「{title}」: {content_preview}")
+
+        return "\n".join(summary_parts)
+
     async def _process_single_chunk(
         self,
         chunk: str,
         chunk_num: int,
         total_chunks: int,
-        language_instruction: str
+        language_instruction: str,
+        previous_context: str = ""
     ) -> dict:
         """处理单个 chunk 并返回解析后的 JSON dict。"""
         label = f"Chunk {chunk_num}/{total_chunks}"
@@ -1238,6 +1281,7 @@ class LLMService:
                 chunk_index=chunk_num,
                 total_chunks=total_chunks,
                 language_instruction=language_instruction,
+                previous_context=previous_context,
                 content=chunk
             )
 
@@ -1254,13 +1298,17 @@ class LLMService:
         chunk_num: int,
         total_chunks: int,
         language_instruction: str,
-        per_chunk_timeout: float
+        per_chunk_timeout: float,
+        previous_context: str = ""
     ) -> dict:
         """处理单个 chunk，带独立超时保护。"""
         label = f"Chunk {chunk_num}/{total_chunks}"
         try:
             return await asyncio.wait_for(
-                self._process_single_chunk(chunk, chunk_num, total_chunks, language_instruction),
+                self._process_single_chunk(
+                    chunk, chunk_num, total_chunks, language_instruction,
+                    previous_context=previous_context
+                ),
                 timeout=per_chunk_timeout
             )
         except asyncio.TimeoutError:
@@ -1273,10 +1321,10 @@ class LLMService:
         translate_to_chinese: bool
     ) -> dict:
         """
-        分块处理长文章：将 markdown 拆分成多个块，分别调用 LLM 转换，最后合并结果。
-        第一块提取 title/subtitle/meta + sections，后续块只提取 sections。
-        后续块使用 asyncio.Semaphore 进行并行处理以加快速度。
+        分块处理长文章：将 markdown 拆分成多个块，**顺序处理**，每块带上下文。
+        第一块提取 title/subtitle/meta + sections，后续块带上一块的输出摘要。
         每个 chunk 有独立的超时保护，防止单个慢 chunk 拖垮整个任务。
+        输出截断时通过 continue 模式自动续写拼接。
         """
         chunks = split_markdown_into_chunks(markdown_content, self.chunk_size)
         language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
@@ -1287,13 +1335,12 @@ class LLMService:
         per_chunk_timeout = min(300.0, 180.0 + max(len(c) for c in chunks) / 1000 * 10)
 
         logger.info(
-            "Chunked processing: %d chunks, max_parallel=%d, per_chunk_timeout=%.0fs",
+            "Chunked processing: %d chunks, per_chunk_timeout=%.0fs (sequential with context)",
             total_chunks,
-            self.max_parallel_chunks,
             per_chunk_timeout
         )
 
-        # 第一块同步处理，获取 title/subtitle/meta
+        # 第一块处理，获取 title/subtitle/meta
         first_data = await self._process_chunk_with_timeout(
             chunks[0], 1, total_chunks, language_instruction, per_chunk_timeout
         )
@@ -1303,32 +1350,25 @@ class LLMService:
         all_sections: list[dict] = first_data.get("sections", [])
         logger.info(f"[Chunk 1/{total_chunks}] Got {len(all_sections)} sections")
 
-        # 后续块并行处理（使用 semaphore 控制并发数）
-        if total_chunks > 1:
-            semaphore = asyncio.Semaphore(self.max_parallel_chunks)
+        # 后续块顺序处理，每块带上一块的输出摘要作为上下文
+        previous_data = first_data
+        for i in range(1, total_chunks):
+            chunk_num = i + 1
+            label = f"Chunk {chunk_num}/{total_chunks}"
 
-            async def process_with_semaphore(chunk: str, chunk_num: int) -> dict:
-                async with semaphore:
-                    return await self._process_chunk_with_timeout(
-                        chunk, chunk_num, total_chunks, language_instruction, per_chunk_timeout
-                    )
+            # 从上一块的输出中提取上下文摘要
+            previous_context = self._build_context_summary(previous_data)
+            logger.info(f"[{label}] Context from previous chunk: {previous_context[:200]}...")
 
-            tasks = [
-                process_with_semaphore(chunks[i], i + 1)
-                for i in range(1, total_chunks)
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            chunk_data = await self._process_chunk_with_timeout(
+                chunks[i], chunk_num, total_chunks, language_instruction,
+                per_chunk_timeout, previous_context=previous_context
+            )
 
-            # 按顺序合并结果
-            for i, result in enumerate(results):
-                chunk_num = i + 2  # 从第2块开始
-                label = f"Chunk {chunk_num}/{total_chunks}"
-                if isinstance(result, Exception):
-                    logger.error(f"[{label}] Failed: {result}")
-                    raise result
-                chunk_sections = result.get("sections", [])
-                logger.info(f"[{label}] Got {len(chunk_sections)} sections")
-                all_sections.extend(chunk_sections)
+            chunk_sections = chunk_data.get("sections", [])
+            logger.info(f"[{label}] Got {len(chunk_sections)} sections")
+            all_sections.extend(chunk_sections)
+            previous_data = chunk_data
 
         logger.info(
             "Chunked processing complete: %d chunks -> %d total sections",
