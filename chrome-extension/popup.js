@@ -211,6 +211,7 @@ async function clearCachedYouTubeTaskId(cacheKey) {
 /**
  * 从 YouTube 页面注入脚本，提取视频元数据并获取字幕内容。
  * 所有操作在 YouTube 页面上下文（MAIN world）中执行，确保有正确的 cookies 和 origin。
+ * 使用同步 XMLHttpRequest 获取字幕（避免 async executeScript 的兼容性问题）。
  * 返回: { videoId, title, author, shortDescription, keywords, captionLanguage, availableCaptions, subtitleLines }
  */
 async function getYouTubeDataFromPage(tabId) {
@@ -221,7 +222,7 @@ async function getYouTubeDataFromPage(tabId) {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: async () => {
+      func: () => {
         // ===== 1. 获取 playerResponse =====
         let playerResponse = null;
 
@@ -235,7 +236,7 @@ async function getYouTubeDataFromPage(tabId) {
           playerResponse = window.ytplayer.config.args.raw_player_response;
         }
 
-        // 方法3: 从 movie_player 获取（SPA 导航后）
+        // 方法3: 从 movie_player 获取（SPA 导航后最可靠）
         if (!playerResponse) {
           try {
             const player = document.getElementById('movie_player');
@@ -256,10 +257,18 @@ async function getYouTubeDataFromPage(tabId) {
             const idx = text.indexOf(marker);
             if (idx !== -1) {
               try {
-                // 找到分号结尾
-                const endIdx = text.indexOf('};', idx + marker.length);
-                if (endIdx !== -1) {
-                  playerResponse = JSON.parse(text.substring(idx + marker.length, endIdx + 1));
+                const jsonStr = text.substring(idx + marker.length);
+                let depth = 0;
+                let end = 0;
+                for (let i = 0; i < jsonStr.length; i++) {
+                  if (jsonStr[i] === '{') depth++;
+                  else if (jsonStr[i] === '}') {
+                    depth--;
+                    if (depth === 0) { end = i + 1; break; }
+                  }
+                }
+                if (end > 0) {
+                  playerResponse = JSON.parse(jsonStr.substring(0, end));
                 }
               } catch (e) {
                 // 解析失败
@@ -291,15 +300,29 @@ async function getYouTubeDataFromPage(tabId) {
           return { error: 'no_track_url' };
         }
 
-        // ===== 3. 在页面上下文中 fetch 字幕（有 YouTube cookies） =====
+        // ===== 3. 使用同步 XMLHttpRequest 获取字幕（在页面上下文中，有 cookies） =====
+        // 注意：使用同步 XHR 而非 async fetch，因为 chrome.scripting.executeScript
+        // 对 async 函数的 Promise 返回值支持不稳定（可能返回 null/undefined）
         let subtitleLines = [];
+        let fetchError = '';
+
+        // 辅助函数：同步 GET 请求
+        function syncGet(url) {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', url, false); // 第三个参数 false = 同步
+          xhr.send();
+          if (xhr.status === 200) {
+            return xhr.responseText;
+          }
+          return null;
+        }
 
         // 尝试 JSON3 格式
         try {
           const json3Url = trackUrl + '&fmt=json3';
-          const resp = await fetch(json3Url);
-          if (resp.ok) {
-            const json3Data = await resp.json();
+          const json3Text = syncGet(json3Url);
+          if (json3Text) {
+            const json3Data = JSON.parse(json3Text);
             const events = json3Data?.events || [];
             for (const event of events) {
               if (!event.segs) continue;
@@ -310,15 +333,14 @@ async function getYouTubeDataFromPage(tabId) {
             }
           }
         } catch (e) {
-          // JSON3 失败
+          fetchError = 'json3: ' + (e.message || String(e));
         }
 
         // 回退到 XML 格式
         if (subtitleLines.length === 0) {
           try {
-            const resp = await fetch(trackUrl);
-            if (resp.ok) {
-              const xmlText = await resp.text();
+            const xmlText = syncGet(trackUrl);
+            if (xmlText) {
               const parser = new DOMParser();
               const doc = parser.parseFromString(xmlText, 'text/xml');
               const textElements = doc.querySelectorAll('text');
@@ -330,12 +352,12 @@ async function getYouTubeDataFromPage(tabId) {
               }
             }
           } catch (e) {
-            // XML 也失败了
+            fetchError += '; xml: ' + (e.message || String(e));
           }
         }
 
         if (subtitleLines.length === 0) {
-          return { error: 'empty_captions' };
+          return { error: 'empty_captions', detail: fetchError, trackUrl: trackUrl.substring(0, 100) };
         }
 
         // ===== 4. 返回完整数据 =====
@@ -382,7 +404,8 @@ async function getYouTubeSubtitleText(videoUrl, tabId) {
     throw new Error('字幕轨道地址缺失');
   }
   if (data.error === 'empty_captions') {
-    throw new Error('字幕内容为空');
+    const detail = data.detail ? ` (${data.detail})` : '';
+    throw new Error(`字幕内容为空${detail}`);
   }
   if (data.error) {
     throw new Error(`获取字幕失败: ${data.error}`);
