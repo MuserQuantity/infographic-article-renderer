@@ -660,6 +660,30 @@ def fix_comparison_rows(data: dict) -> dict:
     return data
 
 
+# Literal 字段的合法值映射，用于清理 LLM 输出的无效值
+_VALID_LITERAL_VALUES = {
+    "variant": {"info", "warning", "success"},
+    "style": {"bullet", "check", "number"},
+    "color": {"yellow", "blue", "green", "pink"},
+    "dividerStyle": {"simple", "decorated", "text"},
+    "platform": {"youtube", "bilibili", "custom"},
+    "trend": {"up", "down", "flat"},
+}
+
+
+def _sanitize_literal_fields(block: dict) -> dict:
+    """清理 block 中所有 Literal 字段的无效值，避免 Pydantic 验证失败。"""
+    for field, valid_values in _VALID_LITERAL_VALUES.items():
+        if field in block and block[field] is not None:
+            if block[field] not in valid_values:
+                logger.warning(
+                    "Removing invalid %s='%s' from block type='%s' (valid: %s)",
+                    field, block[field], block.get("type"), valid_values
+                )
+                del block[field]
+    return block
+
+
 def normalize_blocks(data: dict) -> dict:
     if "sections" not in data:
         return data
@@ -681,6 +705,9 @@ def normalize_blocks(data: dict) -> dict:
 
             normalized_block = dict(block)
             normalized_block["type"] = block_type
+
+            # 清理所有 Literal 字段的无效值
+            normalized_block = _sanitize_literal_fields(normalized_block)
 
             if block_type == "paragraph":
                 text = str(normalized_block.get("text", "")).strip()
@@ -748,10 +775,14 @@ def normalize_blocks(data: dict) -> dict:
                         label = str(item.get("label", "")).strip()
                         value = str(item.get("value", "")).strip()
                         if label and value:
+                            trend = item.get("trend")
+                            if trend is not None and trend not in _VALID_LITERAL_VALUES.get("trend", set()):
+                                logger.warning("Removing invalid trend='%s' from stat item", trend)
+                                trend = None
                             normalized_items.append({
                                 "label": label,
                                 "value": value,
-                                "trend": item.get("trend"),
+                                "trend": trend,
                                 "note": str(item.get("note", "")).strip() if item.get("note") is not None else None
                             })
                 if not normalized_items:
