@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     llm_max_continuations: int = 5
     llm_chunk_size: int = 15000  # 超过此字符数的输入内容将分块处理
     llm_max_parallel_chunks: int = 3  # 分块处理时最大并行数
+    # 双模型架构：长文本使用 Model A (分析) + Model B (格式化) 两步处理
+    llm_formatter_model_name: str = ""  # Model B 模型名称，为空则使用 llm_model_name
+    llm_dual_model_enabled: bool = True  # 是否启用双模型架构（仅对长文本生效）
 
     # Crawl4AI Configuration
     crawl4ai_url: str = "http://localhost:11235"

@@ -26,6 +26,9 @@ def extract_json_from_response(content: str) -> str:
 
     # 如果内容已经是以 { 开头，直接返回
     content_stripped = content.strip()
+    # 修复多余的前导花括号（如 LLM 输出 {{{"sections": ...}}）
+    while content_stripped.startswith('{{') and not content_stripped.startswith('{"') and len(content_stripped) > 2:
+        content_stripped = content_stripped[1:]
     if content_stripped.startswith('{'):
         return content_stripped
 
@@ -428,7 +431,7 @@ KEEP_ORIGINAL_INSTRUCTION = """
 
 【重要】请保持文章的原始语言，不要翻译任何内容。"""
 
-# 分块处理时，后续 chunk 带上下文的 prompt
+# 分块处理时，后续 chunk 带上下文的 prompt（单模型模式）
 CHUNK_USER_PROMPT_TEMPLATE = """你正在处理一篇长文章的**第 {chunk_index} 部分（共 {total_chunks} 部分）**。
 
 【上一部分的处理结果摘要】
@@ -449,6 +452,264 @@ CHUNK_USER_PROMPT_TEMPLATE = """你正在处理一篇长文章的**第 {chunk_in
 文章片段（第 {chunk_index}/{total_chunks} 部分）：
 
 {content}"""
+
+# ==============================================================================
+# 双模型模式提示词：Model A (分析) + Model B (格式化)
+# 长文本使用双模型模式，将"内容理解"与"格式输出"分离，提高质量
+# ==============================================================================
+
+# Model A: 内容分析模型 — 专注于理解、翻译、结构化内容
+ANALYST_SYSTEM_PROMPT = """你是一个专业的内容分析与结构化专家。你的任务是深入理解文章内容，提取关键信息，并输出一份结构化的内容分析报告。
+
+你只需要专注于内容理解和组织，不需要输出 JSON 格式。输出清晰的结构化文本即可。
+
+分析原则：
+1. 完整性：覆盖文章的所有关键内容，不要遗漏重要信息、数据、观点或结论
+2. 结构化：将内容组织成清晰的章节，每个章节有明确的主题
+3. 内容类型标注：为每个内容块标注最合适的展示类型（见下方类型列表）
+4. 保留细节：保留关键数据、数字、引用、人名、专业术语等
+5. 排版节奏：避免连续大段叙述，穿插使用不同的内容类型来增加视觉丰富度
+
+可用的内容类型：
+- paragraph: 普通段落文本（可用 **粗体** 标注重点）
+- list: 列表（bullet/check/number 样式）
+- quote: 引用（含作者）
+- callout: 提示框（info/warning/success 类型）
+- grid: 网格卡片（2-3 列，每项含标题+描述）
+- stat: 统计数据（标签+值+趋势up/down/flat）
+- tags: 标签列表
+- timeline: 时间线（标题+时间+描述）
+- comparison: 对比表（列名+行数据）
+- table: 表格（表头+行数据）
+- code: 代码块
+- accordion: 折叠面板/FAQ
+- steps: 步骤流程
+- progress: 进度/评分条
+- highlight: 高亮重点文本（yellow/blue/green/pink）
+- definition: 术语定义
+- proscons: 优缺点对比
+- divider: 分隔线
+- linkcard: 链接卡片
+- rating: 评分展示
+
+内容类型选择策略：
+- 数据/指标/百分比 → stat 或 progress
+- 对比事物 → comparison 或 proscons
+- 流程/步骤 → steps 或 timeline
+- 要点清单 → list
+- 关键概念 → definition
+- 常见问题 → accordion
+- 名言/观点 → quote
+- 重要提醒 → callout
+- 关键结论 → highlight
+- 纯叙述 → paragraph
+
+排版节奏规则（重要）：
+- 禁止连续超过 2 个 paragraph，中间插入其他类型打破单调
+- 每个章节至少包含 2 种不同类型
+- 每个章节推荐包含 1 个视觉焦点（stat/grid/comparison/timeline/steps 等）
+- section 的标题禁止包含序号前缀（渲染器会自动添加编号）"""
+
+# Model A: 第一个 chunk 的用户提示词
+ANALYST_USER_PROMPT_FIRST = """请分析以下文章内容，输出结构化的内容分析报告。
+
+输出格式要求：
+1. 第一行写文章标题，格式：【标题】xxx
+2. 如有副标题，第二行写：【副标题】xxx
+3. 如有作者/日期信息，写：【作者】xxx【日期】xxx【阅读时间】x分钟
+4. 然后按章节组织内容，每个章节格式：
+
+====
+【章节】章节标题
+
+[内容类型] 具体内容...
+[内容类型] 具体内容...
+====
+
+具体内容类型的写法：
+
+[paragraph] 段落文本，可以用 **粗体** 标注重点
+
+[list:bullet] 或 [list:check] 或 [list:number]
+- 列表项1
+- 列表项2
+
+[quote] 引用文本 —— 作者名
+
+[callout:info] 或 [callout:warning] 或 [callout:success]
+标题：提示框标题
+内容：提示框内容
+
+[stat]
+- 标签1: 值1 (趋势:up/down/flat, 说明:xxx)
+- 标签2: 值2
+
+[highlight:yellow] 或 [highlight:blue] 等
+高亮重点文本
+
+[grid:2列] 或 [grid:3列]
+- 标题1: 描述1
+- 标题2: 描述2
+
+[comparison]
+列名: 列A, 列B
+- 行标签1: 值A1, 值B1
+- 行标签2: 值A2, 值B2
+
+[steps]
+1. 步骤标题1: 步骤描述1
+2. 步骤标题2: 步骤描述2
+
+[timeline]
+- 时间1 | 事件标题1: 事件描述1
+- 时间2 | 事件标题2: 事件描述2
+
+[definition]
+- 术语1: 定义1
+- 术语2: 定义2
+
+[accordion]
+- 问题1? 回答1
+- 问题2? 回答2
+
+[proscons]
+优点: 优点1, 优点2
+缺点: 缺点1, 缺点2
+
+[progress]
+- 标签1: 值1/最大值1
+- 标签2: 值2/最大值2
+
+[rating]
+- 评分项1: 分数1/满分1
+- 评分项2: 分数2/满分2
+
+[table]
+表头: 列1, 列2, 列3
+- 数据1, 数据2, 数据3
+
+[divider] 或 [divider:decorated] 或 [divider:text] 分隔文字
+
+[linkcard] 标题 | 描述 | URL
+
+[tags] 标签1, 标签2, 标签3
+
+{language_instruction}
+
+请完整分析，不要遗漏内容。输出结构化分析报告，不需要输出 JSON。
+
+---
+文章内容：
+
+{content}"""
+
+# Model A: 后续 chunk 的用户提示词（带上下文）
+ANALYST_USER_PROMPT_CONTINUE = """你正在分析一篇长文章的**第 {chunk_index} 部分（共 {total_chunks} 部分）**。
+
+【上一部分的分析摘要】
+{previous_context}
+
+请继续分析以下文章片段，输出结构化分析报告。注意：
+- 不需要再输出标题、副标题、作者等元信息
+- 直接从章节开始输出
+- 注意与上一部分的内容衔接，避免重复
+- 完整覆盖本部分所有内容
+
+输出格式同上（用 ==== 分隔章节，[类型] 标注内容块）。
+
+{language_instruction}
+
+---
+文章片段（第 {chunk_index}/{total_chunks} 部分）：
+
+{content}"""
+
+# Model B: JSON 格式化模型 — 专注于将分析报告转换为严格 JSON
+FORMATTER_SYSTEM_PROMPT = """你是一个 JSON 格式化专家。你的唯一任务是将结构化的内容分析报告转换为严格符合 schema 的 JSON 输出。
+
+你不需要理解或修改内容本身，只需要精确地将分析报告中的每一项内容映射到对应的 JSON 结构。只输出 JSON，不要输出任何解释或多余文字。输出必须以 { 开始，以 } 结束。
+
+关键规则：
+1. 严格按照分析报告中标注的内容类型来设置 type 字段
+2. 不要遗漏任何内容，每个 [类型] 标注的内容块都必须转换
+3. 枚举值必须严格匹配：
+   - variant: 只能是 "info"、"warning"、"success"
+   - style: 只能是 "bullet"、"check"、"number"
+   - color: 只能是 "yellow"、"blue"、"green"、"pink"
+   - dividerStyle: 只能是 "simple"、"decorated"、"text"
+   - trend: 只能是 "up"、"down"、"flat"
+4. ComparisonRow 必须是对象格式：{"label": "...", "values": [...]}，不是数组"""
+
+# Model B: 第一个 chunk 的用户提示词（包含完整 schema）
+FORMATTER_USER_PROMPT_FIRST = """请将以下内容分析报告转换为严格的 JSON 格式。
+
+输出格式必须遵循以下 TypeScript 类型定义：
+
+```typescript
+interface ArticleData {{
+  title: string;
+  subtitle?: string;
+  meta?: {{ author?: string; date?: string; readTime?: string; }};
+  sections: ArticleSection[];
+}}
+
+interface ArticleSection {{
+  title: string;
+  content: ContentBlock[];
+}}
+
+type ContentBlock =
+  | {{ type: "paragraph"; text: string }}
+  | {{ type: "quote"; text: string; author?: string }}
+  | {{ type: "callout"; text: string; title?: string; variant?: "info" | "warning" | "success" }}
+  | {{ type: "list"; items: string[]; title?: string; style?: "bullet" | "check" | "number" }}
+  | {{ type: "grid"; items: {{ title: string; description: string }}[]; columns: 1 | 2 | 3 }}
+  | {{ type: "stat"; items: {{ label: string; value: string; trend?: "up" | "down" | "flat"; note?: string }}[]; columns?: 1 | 2 | 3 }}
+  | {{ type: "tags"; items: string[] }}
+  | {{ type: "timeline"; items: {{ title: string; time?: string; desc?: string }}[] }}
+  | {{ type: "comparison"; columns: string[]; rows: {{ label: string; values: string[] }}[] }}
+  | {{ type: "table"; headers: string[]; rows: string[][] }}
+  | {{ type: "code"; code: string; language?: string; title?: string }}
+  | {{ type: "accordion"; items: {{ question: string; answer: string }}[] }}
+  | {{ type: "steps"; items: {{ step: number; title: string; description: string }}[] }}
+  | {{ type: "progress"; items: {{ label: string; value: number; max?: number }}[] }}
+  | {{ type: "highlight"; text: string; color?: "yellow" | "blue" | "green" | "pink" }}
+  | {{ type: "definition"; items: {{ term: string; definition: string }}[] }}
+  | {{ type: "proscons"; pros: string[]; cons: string[] }}
+  | {{ type: "video"; src: string; platform?: "youtube" | "bilibili" | "custom"; title?: string }}
+  | {{ type: "divider"; dividerStyle?: "simple" | "decorated" | "text"; text?: string }}
+  | {{ type: "linkcard"; url: string; title: string; description?: string; image?: string }}
+  | {{ type: "rating"; items: {{ label: string; score: number; maxScore?: number }}[] }}
+```
+
+请直接输出完整的 ArticleData JSON，包含 title、subtitle、meta 和 sections。
+
+---
+内容分析报告：
+
+{analysis}"""
+
+# Model B: 后续 chunk 的用户提示词（只输出 sections）
+FORMATTER_USER_PROMPT_CONTINUE = """请将以下内容分析报告片段转换为 JSON sections 数组。
+
+注意：
+- 只输出 sections 数组部分，不需要 title、subtitle、meta
+- 输出格式为：{{"sections": [...]}}
+- 严格按照分析报告中的内容类型映射到 JSON
+- ComparisonRow 格式：{{"label": "...", "values": [...]}}
+- section 的 title 禁止包含序号前缀（渲染器会自动添加编号）
+
+ContentBlock 类型参考（枚举值必须严格匹配）：
+- callout 的 variant: 只能是 "info" | "warning" | "success"（不要用其他值如 "decorated"）
+- list 的 style: 只能是 "bullet" | "check" | "number"
+- highlight 的 color: 只能是 "yellow" | "blue" | "green" | "pink"
+- divider 的 dividerStyle: 只能是 "simple" | "decorated" | "text"
+- stat 的 trend: 只能是 "up" | "down" | "flat"
+
+---
+内容分析报告（第 {chunk_index}/{total_chunks} 部分）：
+
+{analysis}"""
 
 
 def split_markdown_into_chunks(content: str, chunk_size: int) -> list[str]:
@@ -1047,6 +1308,8 @@ class LLMService:
             max_retries=0
         )
         self.model = settings.llm_model_name
+        self.formatter_model = settings.llm_formatter_model_name or self.model
+        self.dual_model_enabled = settings.llm_dual_model_enabled
         self.max_retries = max(0, settings.llm_max_retries)
         self.retry_base_delay = max(0.1, settings.llm_retry_base_delay)
         self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
@@ -1119,13 +1382,15 @@ class LLMService:
         self,
         messages: list[dict],
         accumulated_content: str,
-        content_length: int
+        content_length: int,
+        model_override: Optional[str] = None
     ) -> str:
         """
         当 LLM 输出因 max_tokens 被截断时（finish_reason='length'），
         自动发送续写请求，将所有部分拼接为完整内容。
         """
         full_content = accumulated_content
+        model = model_override or self.model
 
         for continuation in range(1, self.max_continuations + 1):
             logger.info(
@@ -1138,11 +1403,11 @@ class LLMService:
             # 构建续写消息：在原始对话的基础上追加已有的 assistant 回复和续写请求
             continue_messages = messages + [
                 {"role": "assistant", "content": full_content},
-                {"role": "user", "content": "你的 JSON 输出不完整，被截断了。请从断点处继续输出剩余的 JSON 内容，不要重复已有部分，不要添加任何解释文字。"}
+                {"role": "user", "content": "你的输出不完整，被截断了。请从断点处继续输出剩余内容，不要重复已有部分，不要添加任何解释文字。"}
             ]
 
             continue_kwargs: dict = {
-                "model": self.model,
+                "model": model,
                 "messages": continue_messages,
                 "temperature": 0.3
             }
@@ -1180,19 +1445,64 @@ class LLMService:
         )
         return full_content
 
+    async def _call_llm_text(
+        self,
+        messages: list[dict],
+        content_length: int,
+        label: str = "LLM",
+        model_override: Optional[str] = None
+    ) -> str:
+        """
+        调用 LLM 并返回纯文本（不解析 JSON），包含 continue 模式。
+        用于 Model A 分析阶段，输出不需要是 JSON 格式。
+        """
+        model = model_override or self.model
+        logger.debug(f"[{label}] Calling LLM model (text): {model}")
+        request_kwargs: dict = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.3
+        }
+        # Model A 不需要 response_format=json_object
+
+        response = await self._call_with_optional_timeout(request_kwargs, content_length)
+
+        content = response.choices[0].message.content
+        if not content:
+            logger.error(f"[{label}] LLM returned empty response")
+            raise Exception(f"[{label}] LLM returned empty response")
+
+        finish_reason = response.choices[0].finish_reason
+        logger.info(f"[{label}] LLM text response received, length={len(content)}, finish_reason={finish_reason}")
+
+        # 如果输出被截断，进入 continue 模式
+        if finish_reason == "length" and self.max_continuations > 0:
+            logger.warning(
+                "[%s] LLM text output truncated (finish_reason=length), entering continue mode",
+                label
+            )
+            content = await self._continue_completion(
+                messages, content, content_length, model_override=model
+            )
+            logger.info(f"[{label}] Continue mode finished, total text length={len(content)}")
+
+        return content
+
     async def _call_llm_and_parse_json(
         self,
         messages: list[dict],
         content_length: int,
-        label: str = "LLM"
+        label: str = "LLM",
+        model_override: Optional[str] = None
     ) -> dict:
         """
         调用 LLM 并解析返回的 JSON，包含 continue 模式和 JSON 修复逻辑。
         返回解析后的 dict。
         """
-        logger.debug(f"[{label}] Calling LLM model: {self.model}")
+        model = model_override or self.model
+        logger.debug(f"[{label}] Calling LLM model: {model}")
         request_kwargs: dict = {
-            "model": self.model,
+            "model": model,
             "messages": messages,
             "temperature": 0.3
         }
@@ -1217,7 +1527,9 @@ class LLMService:
                 label,
                 self.max_continuations
             )
-            content = await self._continue_completion(messages, content, content_length)
+            content = await self._continue_completion(
+                messages, content, content_length, model_override=model
+            )
             logger.info(f"[{label}] Continue mode finished, total content length={len(content)}")
 
         # 提取 JSON 部分
@@ -1232,7 +1544,9 @@ class LLMService:
                 finish_reason,
                 self.max_continuations
             )
-            content = await self._continue_completion(messages, content, content_length)
+            content = await self._continue_completion(
+                messages, content, content_length, model_override=model
+            )
             content = extract_json_from_response(content)
             logger.info(f"[{label}] Smart continue mode finished, total content length={len(content)}")
 
@@ -1421,6 +1735,200 @@ class LLMService:
 
         return merged_data
 
+    async def _analyze_chunk(
+        self,
+        chunk: str,
+        chunk_num: int,
+        total_chunks: int,
+        language_instruction: str,
+        previous_context: str = ""
+    ) -> str:
+        """Model A: 分析单个 chunk，返回结构化文本分析报告。"""
+        label = f"Analyst {chunk_num}/{total_chunks}"
+        logger.info(f"[{label}] Analyzing chunk, length={len(chunk)}")
+
+        if chunk_num == 1:
+            user_prompt = ANALYST_USER_PROMPT_FIRST.format(
+                language_instruction=language_instruction,
+                content=chunk
+            )
+        else:
+            user_prompt = ANALYST_USER_PROMPT_CONTINUE.format(
+                chunk_index=chunk_num,
+                total_chunks=total_chunks,
+                language_instruction=language_instruction,
+                previous_context=previous_context,
+                content=chunk
+            )
+
+        messages = [
+            {"role": "system", "content": ANALYST_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        return await self._call_llm_text(messages, len(chunk), label=label)
+
+    async def _format_analysis(
+        self,
+        analysis: str,
+        chunk_num: int,
+        total_chunks: int
+    ) -> dict:
+        """Model B: 将分析报告转换为严格 JSON。"""
+        label = f"Formatter {chunk_num}/{total_chunks}"
+        logger.info(f"[{label}] Formatting analysis, length={len(analysis)}")
+
+        if chunk_num == 1:
+            user_prompt = FORMATTER_USER_PROMPT_FIRST.format(analysis=analysis)
+        else:
+            user_prompt = FORMATTER_USER_PROMPT_CONTINUE.format(
+                chunk_index=chunk_num,
+                total_chunks=total_chunks,
+                analysis=analysis
+            )
+
+        messages = [
+            {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        return await self._call_llm_and_parse_json(
+            messages, len(analysis), label=label,
+            model_override=self.formatter_model
+        )
+
+    async def _dual_model_chunk_with_timeout(
+        self,
+        chunk: str,
+        chunk_num: int,
+        total_chunks: int,
+        language_instruction: str,
+        per_chunk_timeout: float,
+        previous_context: str = ""
+    ) -> tuple[dict, str]:
+        """
+        双模型处理单个 chunk：Model A 分析 → Model B 格式化，带超时保护。
+        返回 (json_data, analysis_text)，analysis_text 用于构建下一块的上下文。
+        """
+        label = f"DualModel {chunk_num}/{total_chunks}"
+        try:
+            async def _process():
+                # Phase 1: Model A 分析
+                analysis = await self._analyze_chunk(
+                    chunk, chunk_num, total_chunks,
+                    language_instruction, previous_context
+                )
+                logger.info(
+                    f"[{label}] Model A analysis complete, length={len(analysis)}"
+                )
+
+                # Phase 2: Model B 格式化
+                json_data = await self._format_analysis(
+                    analysis, chunk_num, total_chunks
+                )
+                logger.info(
+                    f"[{label}] Model B formatting complete, sections={len(json_data.get('sections', []))}"
+                )
+                return json_data, analysis
+
+            return await asyncio.wait_for(_process(), timeout=per_chunk_timeout)
+        except asyncio.TimeoutError:
+            logger.error(f"[{label}] Timed out after {per_chunk_timeout:.0f}s (chunk_length={len(chunk)})")
+            raise Exception(f"[{label}] Dual-model processing timed out after {per_chunk_timeout:.0f}s")
+
+    @staticmethod
+    def _build_analysis_context_summary(previous_analysis: str) -> str:
+        """
+        从上一个 chunk 的 Model A 分析文本中提取末尾摘要，作为下一块的上下文。
+        取最后 500 个字符作为上下文（因为分析文本是结构化的，末尾通常是最后的章节）。
+        """
+        if not previous_analysis or not previous_analysis.strip():
+            return "（上一部分未生成有效分析）"
+
+        # 取最后 500 个字符作为上下文
+        summary = previous_analysis.strip()
+        if len(summary) > 500:
+            # 找一个合适的截断点（换行符处）
+            truncated = summary[-500:]
+            newline_pos = truncated.find('\n')
+            if newline_pos > 0:
+                truncated = truncated[newline_pos:]
+            summary = "...\n" + truncated
+
+        return summary
+
+    async def _convert_chunked_dual_model(
+        self,
+        markdown_content: str,
+        translate_to_chinese: bool
+    ) -> dict:
+        """
+        双模型分块处理长文章：
+        每个 chunk 先经过 Model A（分析/翻译）→ 再经过 Model B（JSON 格式化）。
+        顺序处理，前一块的 Model A 分析结果作为下一块的上下文。
+        """
+        chunks = split_markdown_into_chunks(markdown_content, self.chunk_size)
+        language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
+        total_chunks = len(chunks)
+
+        # 双模型模式需要更多时间：A + B 两次调用
+        # 基础 240 秒（比单模型多 60s），每 1000 字符额外加 10 秒，最大 420 秒
+        per_chunk_timeout = min(420.0, 240.0 + max(len(c) for c in chunks) / 1000 * 10)
+
+        logger.info(
+            "Dual-model chunked processing: %d chunks, per_chunk_timeout=%.0fs, "
+            "analyst_model=%s, formatter_model=%s",
+            total_chunks, per_chunk_timeout, self.model, self.formatter_model
+        )
+
+        # 第一块处理
+        first_data, first_analysis = await self._dual_model_chunk_with_timeout(
+            chunks[0], 1, total_chunks, language_instruction, per_chunk_timeout
+        )
+        title = first_data.get("title", "")
+        subtitle = first_data.get("subtitle")
+        meta = first_data.get("meta")
+        all_sections: list[dict] = first_data.get("sections", [])
+        logger.info(f"[DualModel 1/{total_chunks}] Got {len(all_sections)} sections")
+
+        # 后续块顺序处理
+        previous_analysis = first_analysis
+        for i in range(1, total_chunks):
+            chunk_num = i + 1
+            label = f"DualModel {chunk_num}/{total_chunks}"
+
+            # 从上一块的 Model A 分析中提取上下文
+            previous_context = self._build_analysis_context_summary(previous_analysis)
+            logger.info(f"[{label}] Context from previous analysis: {previous_context[:200]}...")
+
+            chunk_data, chunk_analysis = await self._dual_model_chunk_with_timeout(
+                chunks[i], chunk_num, total_chunks, language_instruction,
+                per_chunk_timeout, previous_context=previous_context
+            )
+
+            chunk_sections = chunk_data.get("sections", [])
+            logger.info(f"[{label}] Got {len(chunk_sections)} sections")
+            all_sections.extend(chunk_sections)
+            previous_analysis = chunk_analysis
+
+        logger.info(
+            "Dual-model chunked processing complete: %d chunks -> %d total sections",
+            total_chunks,
+            len(all_sections)
+        )
+
+        # 合并结果
+        merged_data: dict = {
+            "title": title,
+            "sections": all_sections
+        }
+        if subtitle:
+            merged_data["subtitle"] = subtitle
+        if meta:
+            merged_data["meta"] = meta
+
+        return merged_data
+
     async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
         """Convert markdown content to structured ArticleData JSON."""
         logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={len(markdown_content)}")
@@ -1432,9 +1940,18 @@ class LLMService:
                 len(markdown_content),
                 self.chunk_size
             )
-            data = await self._convert_chunked(markdown_content, translate_to_chinese)
+            if self.dual_model_enabled:
+                logger.info(
+                    "Dual-model mode enabled: analyst=%s, formatter=%s",
+                    self.model,
+                    self.formatter_model
+                )
+                data = await self._convert_chunked_dual_model(markdown_content, translate_to_chinese)
+            else:
+                logger.info("Single-model mode: using %s", self.model)
+                data = await self._convert_chunked(markdown_content, translate_to_chinese)
         else:
-            # 短内容：使用单次调用
+            # 短内容：使用单模型一步到位（现有的 SYSTEM_PROMPT + USER_PROMPT_TEMPLATE）
             language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
             user_prompt = USER_PROMPT_TEMPLATE.format(
                 language_instruction=language_instruction,
