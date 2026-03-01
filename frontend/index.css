@@ -2,6 +2,12 @@
 html, body {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
+  overflow-x: hidden; /* 防止微信等移动端浏览器水平滚动 */
+}
+
+html {
+  width: 100%;
+  max-width: 100vw;
 }
 
 html::-webkit-scrollbar,
@@ -95,10 +101,12 @@ body {
 
 /* 移动端优化 */
 @media (max-width: 640px) {
-  /* 优化触摸目标大小 */
-  button, a {
+  /* 优化触摸目标大小 — 仅对表单级按钮和主要链接生效，工具栏小按钮排除 */
+  form button,
+  form a,
+  main button,
+  main a {
     min-height: 44px;
-    min-width: 44px;
   }
 
   /* 优化字体渲染 */

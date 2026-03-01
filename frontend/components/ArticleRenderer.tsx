@@ -1186,7 +1186,7 @@ interface ArticleRendererProps {
 
 export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyzeLink }) => {
   return (
-    <div className="max-w-4xl mx-auto bg-white min-h-screen shadow-xl shadow-stone-900/5 overflow-hidden rounded-none md:rounded-3xl ring-1 ring-stone-900/5 transition-all">
+    <div className="max-w-4xl w-full mx-auto bg-white min-h-screen shadow-xl shadow-stone-900/5 overflow-hidden rounded-none md:rounded-3xl ring-1 ring-stone-900/5 transition-all box-border">
       {/* Header */}
       <header className="bg-stone-950 text-white px-4 py-10 sm:px-8 sm:py-16 md:px-20 md:py-20 relative overflow-hidden">
         {/* Subtle noise texture or pattern could go here */}

@@ -778,27 +778,27 @@ export default function App() {
   return (
     <div className="min-h-screen bg-stone-950 font-sans">
       {/* 顶部工具栏 */}
-      <div className="fixed top-2 sm:top-4 right-2 sm:right-4 z-50 flex flex-wrap gap-1.5 sm:gap-2 max-w-[calc(100vw-1rem)]">
+      <div className="fixed top-2 sm:top-4 right-2 sm:right-4 z-50 flex items-center gap-1.5 sm:gap-2">
         <button
           onClick={handleBack}
-          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium"
+          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium whitespace-nowrap"
         >
           新文章
         </button>
         <a
           href="/articles"
-          className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 sm:gap-2"
+          className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 sm:gap-2"
         >
-          <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span className="hidden xs:inline">文章库</span>
+          <FileText className="w-4 h-4" />
+          <span className="hidden sm:inline">文章库</span>
         </a>
         {taskId && (
           <button
             onClick={handleCopyShareLink}
-            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 sm:gap-2"
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 sm:gap-2"
             title="复制可访问链接"
           >
-            <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Link className="w-4 h-4" />
             <span className="hidden sm:inline">{shareCopied ? '已复制' : '分享链接'}</span>
           </button>
         )}
@@ -807,11 +807,11 @@ export default function App() {
             href={articleUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 sm:gap-2"
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 p-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl shadow-lg transition-colors text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 sm:gap-2"
             title="查看原文"
           >
-            <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden xs:inline">原文</span>
+            <ExternalLink className="w-4 h-4" />
+            <span className="hidden sm:inline">原文</span>
           </a>
         )}
         {sourceType === 'url' && articleUrl && (
@@ -835,7 +835,7 @@ export default function App() {
       </div>
 
       {/* 主内容区 */}
-      <div className="w-full min-h-screen scroll-smooth p-2 sm:p-4 md:p-8 lg:p-12 flex flex-col items-center pt-16 sm:pt-4">
+      <div className="w-full max-w-full min-h-screen scroll-smooth p-2 sm:p-4 md:p-8 lg:p-12 flex flex-col items-center pt-12 sm:pt-4 overflow-x-hidden box-border">
         {articleData ? (
           <ArticleRenderer data={articleData} onAnalyzeLink={handleAnalyzeLink} />
         ) : (
