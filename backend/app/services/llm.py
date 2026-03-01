@@ -504,6 +504,21 @@ def split_markdown_into_chunks(content: str, chunk_size: int) -> list[str]:
     if current_chunk.strip():
         chunks.append(current_chunk.strip())
 
+    # 合并过小的块：如果某个块太小（< chunk_size 的 10%），和相邻块合并
+    min_chunk_size = chunk_size // 10  # 1500 chars for default 15000
+    if len(chunks) > 1:
+        merged: list[str] = []
+        for chunk in chunks:
+            if merged and len(merged[-1]) < min_chunk_size and len(merged[-1]) + len(chunk) <= chunk_size:
+                # 前一个块太小，合并到前一个
+                merged[-1] = merged[-1] + '\n\n' + chunk
+            elif merged and len(chunk) < min_chunk_size and len(merged[-1]) + len(chunk) <= chunk_size:
+                # 当前块太小，合并到前一个
+                merged[-1] = merged[-1] + '\n\n' + chunk
+            else:
+                merged.append(chunk)
+        chunks = merged
+
     logger.info(
         "Split markdown into %d chunks (input_length=%d, chunk_size=%d)",
         len(chunks),
@@ -517,12 +532,35 @@ def split_markdown_into_chunks(content: str, chunk_size: int) -> list[str]:
 
 
 def _split_by_size(content: str, chunk_size: int) -> list[str]:
-    """按照段落边界分割内容到指定大小。"""
+    """
+    按照段落边界分割内容到指定大小。
+    优先按双换行(\n\n)分割，如果单个段落仍然超过 chunk_size，
+    则按单换行(\n)进一步分割（处理字幕等逐行文本）。
+    """
     paragraphs = content.split('\n\n')
     chunks: list[str] = []
     current = ""
 
     for para in paragraphs:
+        # 如果单个段落就超过 chunk_size，按单换行进一步分割
+        if len(para) > chunk_size:
+            # 先保存当前积累的内容
+            if current.strip():
+                chunks.append(current.strip())
+                current = ""
+            # 按单换行分割超大段落
+            lines = para.split('\n')
+            line_buffer = ""
+            for line in lines:
+                if line_buffer and len(line_buffer) + len(line) + 1 > chunk_size:
+                    chunks.append(line_buffer.strip())
+                    line_buffer = ""
+                line_buffer += line + '\n'
+            if line_buffer.strip():
+                # 剩余的行放回 current，可能可以和下一个 para 合并
+                current = line_buffer
+            continue
+
         if current and len(current) + len(para) + 2 > chunk_size:
             chunks.append(current.strip())
             current = ""
@@ -1210,6 +1248,25 @@ class LLMService:
 
         return await self._call_llm_and_parse_json(messages, len(chunk), label=label)
 
+    async def _process_chunk_with_timeout(
+        self,
+        chunk: str,
+        chunk_num: int,
+        total_chunks: int,
+        language_instruction: str,
+        per_chunk_timeout: float
+    ) -> dict:
+        """处理单个 chunk，带独立超时保护。"""
+        label = f"Chunk {chunk_num}/{total_chunks}"
+        try:
+            return await asyncio.wait_for(
+                self._process_single_chunk(chunk, chunk_num, total_chunks, language_instruction),
+                timeout=per_chunk_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[{label}] Timed out after {per_chunk_timeout:.0f}s (chunk_length={len(chunk)})")
+            raise Exception(f"[{label}] LLM processing timed out after {per_chunk_timeout:.0f}s")
+
     async def _convert_chunked(
         self,
         markdown_content: str,
@@ -1219,20 +1276,26 @@ class LLMService:
         分块处理长文章：将 markdown 拆分成多个块，分别调用 LLM 转换，最后合并结果。
         第一块提取 title/subtitle/meta + sections，后续块只提取 sections。
         后续块使用 asyncio.Semaphore 进行并行处理以加快速度。
+        每个 chunk 有独立的超时保护，防止单个慢 chunk 拖垮整个任务。
         """
         chunks = split_markdown_into_chunks(markdown_content, self.chunk_size)
         language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
         total_chunks = len(chunks)
 
+        # 每个 chunk 的超时：基于 chunk 大小动态计算
+        # 基础 180 秒，每 1000 字符额外加 10 秒，最大 300 秒
+        per_chunk_timeout = min(300.0, 180.0 + max(len(c) for c in chunks) / 1000 * 10)
+
         logger.info(
-            "Chunked processing: %d chunks, max_parallel=%d",
+            "Chunked processing: %d chunks, max_parallel=%d, per_chunk_timeout=%.0fs",
             total_chunks,
-            self.max_parallel_chunks
+            self.max_parallel_chunks,
+            per_chunk_timeout
         )
 
         # 第一块同步处理，获取 title/subtitle/meta
-        first_data = await self._process_single_chunk(
-            chunks[0], 1, total_chunks, language_instruction
+        first_data = await self._process_chunk_with_timeout(
+            chunks[0], 1, total_chunks, language_instruction, per_chunk_timeout
         )
         title = first_data.get("title", "")
         subtitle = first_data.get("subtitle")
@@ -1246,8 +1309,8 @@ class LLMService:
 
             async def process_with_semaphore(chunk: str, chunk_num: int) -> dict:
                 async with semaphore:
-                    return await self._process_single_chunk(
-                        chunk, chunk_num, total_chunks, language_instruction
+                    return await self._process_chunk_with_timeout(
+                        chunk, chunk_num, total_chunks, language_instruction, per_chunk_timeout
                     )
 
             tasks = [
@@ -1335,6 +1398,7 @@ class LLMService:
             "Timeout": "页面加载超时，请稍后重试或检查网址是否正确",
             "timeout": "页面加载超时，请稍后重试或检查网址是否正确",
             "LLM request timed out": "AI 处理超时，请稍后重试",
+            "LLM processing timed out": "AI 处理单个分块超时，请稍后重试",
             "maximum context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
             "context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
             "Request too large": "内容过长，超出模型可处理范围，请缩短文本后重试",
