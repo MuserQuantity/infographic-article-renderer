@@ -431,27 +431,6 @@ KEEP_ORIGINAL_INSTRUCTION = """
 
 【重要】请保持文章的原始语言，不要翻译任何内容。"""
 
-# 分块处理时，后续 chunk 带上下文的 prompt（单模型模式）
-CHUNK_USER_PROMPT_TEMPLATE = """你正在处理一篇长文章的**第 {chunk_index} 部分（共 {total_chunks} 部分）**。
-
-【上一部分的处理结果摘要】
-{previous_context}
-
-请将以下文章片段转换为结构化 JSON sections 数组。注意：
-- 只输出 sections 数组部分，不需要 title、subtitle、meta
-- 输出格式为：{{"sections": [...]}}
-- 保持与之前部分相同的排版风格和 ContentBlock 类型选择标准
-- 完整还原本部分所有内容，不要遗漏或压缩
-- 注意与上一部分的内容衔接，避免重复上一部分已覆盖的内容
-
-{language_instruction}
-
-请直接输出 JSON，不要包含 Markdown 代码块标记，不要输出任何解释或多余文本。
-
----
-文章片段（第 {chunk_index}/{total_chunks} 部分）：
-
-{content}"""
 
 # ==============================================================================
 # 双模型模式提示词：Model A (分析) + Model B (格式化)
@@ -603,27 +582,6 @@ ANALYST_USER_PROMPT_FIRST = """请分析以下文章内容，输出结构化的�
 
 {content}"""
 
-# Model A: 后续 chunk 的用户提示词（带上下文）
-ANALYST_USER_PROMPT_CONTINUE = """你正在分析一篇长文章的**第 {chunk_index} 部分（共 {total_chunks} 部分）**。
-
-【上一部分的分析摘要】
-{previous_context}
-
-请继续分析以下文章片段，输出结构化分析报告。注意：
-- 不需要再输出标题、副标题、作者等元信息
-- 直接从章节开始输出
-- 注意与上一部分的内容衔接，避免重复
-- 完整覆盖本部分所有内容
-
-输出格式同上（用 ==== 分隔章节，[类型] 标注内容块）。
-
-{language_instruction}
-
----
-文章片段（第 {chunk_index}/{total_chunks} 部分）：
-
-{content}"""
-
 # Model B: JSON 格式化模型 — 专注于将分析报告转换为严格 JSON
 FORMATTER_SYSTEM_PROMPT = """你是一个 JSON 格式化专家。你的唯一任务是将结构化的内容分析报告转换为严格符合 schema 的 JSON 输出。
 
@@ -689,154 +647,6 @@ type ContentBlock =
 
 {analysis}"""
 
-# Model B: 后续 chunk 的用户提示词（只输出 sections）
-FORMATTER_USER_PROMPT_CONTINUE = """请将以下内容分析报告片段转换为 JSON sections 数组。
-
-注意：
-- 只输出 sections 数组部分，不需要 title、subtitle、meta
-- 输出格式为：{{"sections": [...]}}
-- 严格按照分析报告中的内容类型映射到 JSON
-- ComparisonRow 格式：{{"label": "...", "values": [...]}}
-- section 的 title 禁止包含序号前缀（渲染器会自动添加编号）
-
-ContentBlock 类型参考（枚举值必须严格匹配）：
-- callout 的 variant: 只能是 "info" | "warning" | "success"（不要用其他值如 "decorated"）
-- list 的 style: 只能是 "bullet" | "check" | "number"
-- highlight 的 color: 只能是 "yellow" | "blue" | "green" | "pink"
-- divider 的 dividerStyle: 只能是 "simple" | "decorated" | "text"
-- stat 的 trend: 只能是 "up" | "down" | "flat"
-
----
-内容分析报告（第 {chunk_index}/{total_chunks} 部分）：
-
-{analysis}"""
-
-
-def split_markdown_into_chunks(content: str, chunk_size: int) -> list[str]:
-    """
-    将 markdown 内容按照标题层级分割成合理大小的块。
-    优先在 # 或 ## 标题处分割，保证每块不超过 chunk_size。
-    """
-    if len(content) <= chunk_size:
-        return [content]
-
-    # 按照标题行分割：匹配 # 或 ## 或 ### 开头的行
-    heading_pattern = re.compile(r'^(#{1,3})\s+', re.MULTILINE)
-    headings = list(heading_pattern.finditer(content))
-
-    if not headings:
-        # 没有标题，按段落分割（双换行）
-        return _split_by_size(content, chunk_size)
-
-    # 在每个标题位置处分割出"节"
-    sections: list[str] = []
-    for i, match in enumerate(headings):
-        start = match.start()
-        end = headings[i + 1].start() if i + 1 < len(headings) else len(content)
-        section_text = content[start:end]
-        sections.append(section_text)
-
-    # 如果第一个标题前有内容（如前言），加入
-    if headings[0].start() > 0:
-        preamble = content[:headings[0].start()].strip()
-        if preamble:
-            sections.insert(0, preamble)
-
-    # 将节合并成合理大小的块
-    chunks: list[str] = []
-    current_chunk = ""
-
-    for section in sections:
-        # 如果单个 section 就超过 chunk_size，需要进一步分割
-        if len(section) > chunk_size:
-            # 先把当前积累的块保存
-            if current_chunk.strip():
-                chunks.append(current_chunk.strip())
-                current_chunk = ""
-            # 对超大 section 进行二次分割
-            sub_chunks = _split_by_size(section, chunk_size)
-            chunks.extend(sub_chunks)
-            continue
-
-        # 如果加上这个 section 会超过 chunk_size，先保存当前块
-        if current_chunk and len(current_chunk) + len(section) > chunk_size:
-            chunks.append(current_chunk.strip())
-            current_chunk = ""
-
-        current_chunk += section
-
-    # 保存最后一个块
-    if current_chunk.strip():
-        chunks.append(current_chunk.strip())
-
-    # 合并过小的块：如果某个块太小（< chunk_size 的 20%），和相邻块合并
-    # 允许合并后略微超过 chunk_size（最多 120%），避免浪费 LLM 调用
-    min_chunk_size = chunk_size // 5  # 3000 chars for default 15000
-    merge_limit = int(chunk_size * 1.2)  # 18000 for default 15000
-    if len(chunks) > 1:
-        merged: list[str] = []
-        for chunk in chunks:
-            if merged and len(merged[-1]) < min_chunk_size and len(merged[-1]) + len(chunk) <= merge_limit:
-                # 前一个块太小，合并到前一个
-                merged[-1] = merged[-1] + '\n\n' + chunk
-            elif merged and len(chunk) < min_chunk_size and len(merged[-1]) + len(chunk) <= merge_limit:
-                # 当前块太小，合并到前一个
-                merged[-1] = merged[-1] + '\n\n' + chunk
-            else:
-                merged.append(chunk)
-        chunks = merged
-
-    logger.info(
-        "Split markdown into %d chunks (input_length=%d, chunk_size=%d)",
-        len(chunks),
-        len(content),
-        chunk_size
-    )
-    for i, chunk in enumerate(chunks):
-        logger.info("  Chunk %d/%d: %d chars", i + 1, len(chunks), len(chunk))
-
-    return chunks
-
-
-def _split_by_size(content: str, chunk_size: int) -> list[str]:
-    """
-    按照段落边界分割内容到指定大小。
-    优先按双换行(\n\n)分割，如果单个段落仍然超过 chunk_size，
-    则按单换行(\n)进一步分割（处理字幕等逐行文本）。
-    """
-    paragraphs = content.split('\n\n')
-    chunks: list[str] = []
-    current = ""
-
-    for para in paragraphs:
-        # 如果单个段落就超过 chunk_size，按单换行进一步分割
-        if len(para) > chunk_size:
-            # 先保存当前积累的内容
-            if current.strip():
-                chunks.append(current.strip())
-                current = ""
-            # 按单换行分割超大段落
-            lines = para.split('\n')
-            line_buffer = ""
-            for line in lines:
-                if line_buffer and len(line_buffer) + len(line) + 1 > chunk_size:
-                    chunks.append(line_buffer.strip())
-                    line_buffer = ""
-                line_buffer += line + '\n'
-            if line_buffer.strip():
-                # 剩余的行放回 current，可能可以和下一个 para 合并
-                current = line_buffer
-            continue
-
-        if current and len(current) + len(para) + 2 > chunk_size:
-            chunks.append(current.strip())
-            current = ""
-        current += para + '\n\n'
-
-    if current.strip():
-        chunks.append(current.strip())
-
-    return chunks if chunks else [content]
 
 
 def fix_comparison_rows(data: dict) -> dict:
@@ -1310,13 +1120,12 @@ class LLMService:
         self.model = settings.llm_model_name
         self.formatter_model = settings.llm_formatter_model_name or self.model
         self.dual_model_enabled = settings.llm_dual_model_enabled
+        self.dual_model_threshold = max(0, settings.llm_dual_model_threshold)
         self.max_retries = max(0, settings.llm_max_retries)
         self.retry_base_delay = max(0.1, settings.llm_retry_base_delay)
         self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
         self.use_response_format = settings.llm_use_response_format
         self.max_continuations = max(0, settings.llm_max_continuations)
-        self.chunk_size = max(5000, settings.llm_chunk_size)
-        self.max_parallel_chunks = max(1, settings.llm_max_parallel_chunks)
         self.total_timeout_seconds = self._calculate_total_timeout()
 
     def _calculate_total_timeout(self) -> Optional[float]:
@@ -1568,390 +1377,70 @@ class LLMService:
 
         return data
 
-    @staticmethod
-    def _build_context_summary(previous_data: dict) -> str:
-        """
-        从上一个 chunk 的 LLM 输出中提取摘要，作为下一个 chunk 的上下文。
-        包含最后 1-2 个 section 的标题和内容概要，帮助 LLM 保持语义连贯。
-        """
-        sections = previous_data.get("sections", [])
-        if not sections:
-            return "（上一部分未生成有效内容）"
-
-        # 取最后 2 个 section 作为上下文
-        context_sections = sections[-2:] if len(sections) >= 2 else sections
-        summary_parts: list[str] = []
-
-        for sec in context_sections:
-            title = sec.get("title", "无标题")
-            # 提取 section 内容的关键文本（前 200 字符）
-            content_texts: list[str] = []
-            for block in sec.get("content", []):
-                block_type = block.get("type", "")
-                if block_type == "paragraph":
-                    content_texts.append(block.get("text", "")[:100])
-                elif block_type in ("highlight", "quote"):
-                    content_texts.append(block.get("text", "")[:80])
-                elif block_type == "list":
-                    items = block.get("items", [])
-                    if items:
-                        content_texts.append(f"列表: {items[0][:50]}... 共{len(items)}项")
-                elif block_type == "stat":
-                    stat_items = block.get("items", [])
-                    if stat_items:
-                        content_texts.append(f"数据: {stat_items[0].get('label', '')}={stat_items[0].get('value', '')}")
-
-            content_preview = " | ".join(content_texts[:3]) if content_texts else "（内容块）"
-            summary_parts.append(f"- 章节「{title}」: {content_preview}")
-
-        return "\n".join(summary_parts)
-
-    async def _process_single_chunk(
-        self,
-        chunk: str,
-        chunk_num: int,
-        total_chunks: int,
-        language_instruction: str,
-        previous_context: str = ""
-    ) -> dict:
-        """处理单个 chunk 并返回解析后的 JSON dict。"""
-        label = f"Chunk {chunk_num}/{total_chunks}"
-        logger.info(f"[{label}] Processing chunk, length={len(chunk)}")
-
-        if chunk_num == 1:
-            user_prompt = USER_PROMPT_TEMPLATE.format(
-                language_instruction=language_instruction,
-                content=chunk
-            )
-        else:
-            user_prompt = CHUNK_USER_PROMPT_TEMPLATE.format(
-                chunk_index=chunk_num,
-                total_chunks=total_chunks,
-                language_instruction=language_instruction,
-                previous_context=previous_context,
-                content=chunk
-            )
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
-        ]
-
-        return await self._call_llm_and_parse_json(messages, len(chunk), label=label)
-
-    async def _process_chunk_with_timeout(
-        self,
-        chunk: str,
-        chunk_num: int,
-        total_chunks: int,
-        language_instruction: str,
-        per_chunk_timeout: float,
-        previous_context: str = ""
-    ) -> dict:
-        """处理单个 chunk，带独立超时保护。"""
-        label = f"Chunk {chunk_num}/{total_chunks}"
-        try:
-            return await asyncio.wait_for(
-                self._process_single_chunk(
-                    chunk, chunk_num, total_chunks, language_instruction,
-                    previous_context=previous_context
-                ),
-                timeout=per_chunk_timeout
-            )
-        except asyncio.TimeoutError:
-            logger.error(f"[{label}] Timed out after {per_chunk_timeout:.0f}s (chunk_length={len(chunk)})")
-            raise Exception(f"[{label}] LLM processing timed out after {per_chunk_timeout:.0f}s")
-
-    async def _convert_chunked(
+    async def _convert_dual_model(
         self,
         markdown_content: str,
         translate_to_chinese: bool
     ) -> dict:
         """
-        分块处理长文章：将 markdown 拆分成多个块，**顺序处理**，每块带上下文。
-        第一块提取 title/subtitle/meta + sections，后续块带上一块的输出摘要。
-        每个 chunk 有独立的超时保护，防止单个慢 chunk 拖垮整个任务。
-        输出截断时通过 continue 模式自动续写拼接。
+        双模型处理：将完整内容一次性发给 Model A 分析，再将分析结果发给 Model B 格式化。
+        不分块，依赖模型的长上下文能力（如 Gemini）。
         """
-        chunks = split_markdown_into_chunks(markdown_content, self.chunk_size)
         language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
-        total_chunks = len(chunks)
-
-        # 每个 chunk 的超时：基于 chunk 大小动态计算
-        # 基础 180 秒，每 1000 字符额外加 10 秒，最大 300 秒
-        per_chunk_timeout = min(300.0, 180.0 + max(len(c) for c in chunks) / 1000 * 10)
 
         logger.info(
-            "Chunked processing: %d chunks, per_chunk_timeout=%.0fs (sequential with context)",
-            total_chunks,
-            per_chunk_timeout
+            "Dual-model processing: content_length=%d, analyst_model=%s, formatter_model=%s",
+            len(markdown_content), self.model, self.formatter_model
         )
 
-        # 第一块处理，获取 title/subtitle/meta
-        first_data = await self._process_chunk_with_timeout(
-            chunks[0], 1, total_chunks, language_instruction, per_chunk_timeout
+        # Phase 1: Model A 分析内容
+        user_prompt = ANALYST_USER_PROMPT_FIRST.format(
+            language_instruction=language_instruction,
+            content=markdown_content
         )
-        title = first_data.get("title", "")
-        subtitle = first_data.get("subtitle")
-        meta = first_data.get("meta")
-        all_sections: list[dict] = first_data.get("sections", [])
-        logger.info(f"[Chunk 1/{total_chunks}] Got {len(all_sections)} sections")
-
-        # 后续块顺序处理，每块带上一块的输出摘要作为上下文
-        previous_data = first_data
-        for i in range(1, total_chunks):
-            chunk_num = i + 1
-            label = f"Chunk {chunk_num}/{total_chunks}"
-
-            # 从上一块的输出中提取上下文摘要
-            previous_context = self._build_context_summary(previous_data)
-            logger.info(f"[{label}] Context from previous chunk: {previous_context[:200]}...")
-
-            chunk_data = await self._process_chunk_with_timeout(
-                chunks[i], chunk_num, total_chunks, language_instruction,
-                per_chunk_timeout, previous_context=previous_context
-            )
-
-            chunk_sections = chunk_data.get("sections", [])
-            logger.info(f"[{label}] Got {len(chunk_sections)} sections")
-            all_sections.extend(chunk_sections)
-            previous_data = chunk_data
-
-        logger.info(
-            "Chunked processing complete: %d chunks -> %d total sections",
-            total_chunks,
-            len(all_sections)
-        )
-
-        # 合并结果
-        merged_data: dict = {
-            "title": title,
-            "sections": all_sections
-        }
-        if subtitle:
-            merged_data["subtitle"] = subtitle
-        if meta:
-            merged_data["meta"] = meta
-
-        return merged_data
-
-    async def _analyze_chunk(
-        self,
-        chunk: str,
-        chunk_num: int,
-        total_chunks: int,
-        language_instruction: str,
-        previous_context: str = ""
-    ) -> str:
-        """Model A: 分析单个 chunk，返回结构化文本分析报告。"""
-        label = f"Analyst {chunk_num}/{total_chunks}"
-        logger.info(f"[{label}] Analyzing chunk, length={len(chunk)}")
-
-        if chunk_num == 1:
-            user_prompt = ANALYST_USER_PROMPT_FIRST.format(
-                language_instruction=language_instruction,
-                content=chunk
-            )
-        else:
-            user_prompt = ANALYST_USER_PROMPT_CONTINUE.format(
-                chunk_index=chunk_num,
-                total_chunks=total_chunks,
-                language_instruction=language_instruction,
-                previous_context=previous_context,
-                content=chunk
-            )
-
         messages = [
             {"role": "system", "content": ANALYST_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt}
         ]
+        analysis = await self._call_llm_text(messages, len(markdown_content), label="Analyst")
+        logger.info("Model A analysis complete, length=%d", len(analysis))
 
-        return await self._call_llm_text(messages, len(chunk), label=label)
-
-    async def _format_analysis(
-        self,
-        analysis: str,
-        chunk_num: int,
-        total_chunks: int
-    ) -> dict:
-        """Model B: 将分析报告转换为严格 JSON。"""
-        label = f"Formatter {chunk_num}/{total_chunks}"
-        logger.info(f"[{label}] Formatting analysis, length={len(analysis)}")
-
-        if chunk_num == 1:
-            user_prompt = FORMATTER_USER_PROMPT_FIRST.format(analysis=analysis)
-        else:
-            user_prompt = FORMATTER_USER_PROMPT_CONTINUE.format(
-                chunk_index=chunk_num,
-                total_chunks=total_chunks,
-                analysis=analysis
-            )
-
-        messages = [
+        # Phase 2: Model B 格式化为 JSON
+        formatter_prompt = FORMATTER_USER_PROMPT_FIRST.format(analysis=analysis)
+        formatter_messages = [
             {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": formatter_prompt}
         ]
-
-        return await self._call_llm_and_parse_json(
-            messages, len(analysis), label=label,
+        data = await self._call_llm_and_parse_json(
+            formatter_messages, len(analysis), label="Formatter",
             model_override=self.formatter_model
         )
-
-    async def _dual_model_chunk_with_timeout(
-        self,
-        chunk: str,
-        chunk_num: int,
-        total_chunks: int,
-        language_instruction: str,
-        per_chunk_timeout: float,
-        previous_context: str = ""
-    ) -> tuple[dict, str]:
-        """
-        双模型处理单个 chunk：Model A 分析 → Model B 格式化，带超时保护。
-        返回 (json_data, analysis_text)，analysis_text 用于构建下一块的上下文。
-        """
-        label = f"DualModel {chunk_num}/{total_chunks}"
-        try:
-            async def _process():
-                # Phase 1: Model A 分析
-                analysis = await self._analyze_chunk(
-                    chunk, chunk_num, total_chunks,
-                    language_instruction, previous_context
-                )
-                logger.info(
-                    f"[{label}] Model A analysis complete, length={len(analysis)}"
-                )
-
-                # Phase 2: Model B 格式化
-                json_data = await self._format_analysis(
-                    analysis, chunk_num, total_chunks
-                )
-                logger.info(
-                    f"[{label}] Model B formatting complete, sections={len(json_data.get('sections', []))}"
-                )
-                return json_data, analysis
-
-            return await asyncio.wait_for(_process(), timeout=per_chunk_timeout)
-        except asyncio.TimeoutError:
-            logger.error(f"[{label}] Timed out after {per_chunk_timeout:.0f}s (chunk_length={len(chunk)})")
-            raise Exception(f"[{label}] Dual-model processing timed out after {per_chunk_timeout:.0f}s")
-
-    @staticmethod
-    def _build_analysis_context_summary(previous_analysis: str) -> str:
-        """
-        从上一个 chunk 的 Model A 分析文本中提取末尾摘要，作为下一块的上下文。
-        取最后 500 个字符作为上下文（因为分析文本是结构化的，末尾通常是最后的章节）。
-        """
-        if not previous_analysis or not previous_analysis.strip():
-            return "（上一部分未生成有效分析）"
-
-        # 取最后 500 个字符作为上下文
-        summary = previous_analysis.strip()
-        if len(summary) > 500:
-            # 找一个合适的截断点（换行符处）
-            truncated = summary[-500:]
-            newline_pos = truncated.find('\n')
-            if newline_pos > 0:
-                truncated = truncated[newline_pos:]
-            summary = "...\n" + truncated
-
-        return summary
-
-    async def _convert_chunked_dual_model(
-        self,
-        markdown_content: str,
-        translate_to_chinese: bool
-    ) -> dict:
-        """
-        双模型分块处理长文章：
-        每个 chunk 先经过 Model A（分析/翻译）→ 再经过 Model B（JSON 格式化）。
-        顺序处理，前一块的 Model A 分析结果作为下一块的上下文。
-        """
-        chunks = split_markdown_into_chunks(markdown_content, self.chunk_size)
-        language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
-        total_chunks = len(chunks)
-
-        # 双模型模式需要更多时间：A + B 两次调用
-        # 基础 240 秒（比单模型多 60s），每 1000 字符额外加 10 秒，最大 420 秒
-        per_chunk_timeout = min(420.0, 240.0 + max(len(c) for c in chunks) / 1000 * 10)
-
         logger.info(
-            "Dual-model chunked processing: %d chunks, per_chunk_timeout=%.0fs, "
-            "analyst_model=%s, formatter_model=%s",
-            total_chunks, per_chunk_timeout, self.model, self.formatter_model
+            "Model B formatting complete, sections=%d",
+            len(data.get('sections', []))
         )
 
-        # 第一块处理
-        first_data, first_analysis = await self._dual_model_chunk_with_timeout(
-            chunks[0], 1, total_chunks, language_instruction, per_chunk_timeout
-        )
-        title = first_data.get("title", "")
-        subtitle = first_data.get("subtitle")
-        meta = first_data.get("meta")
-        all_sections: list[dict] = first_data.get("sections", [])
-        logger.info(f"[DualModel 1/{total_chunks}] Got {len(all_sections)} sections")
-
-        # 后续块顺序处理
-        previous_analysis = first_analysis
-        for i in range(1, total_chunks):
-            chunk_num = i + 1
-            label = f"DualModel {chunk_num}/{total_chunks}"
-
-            # 从上一块的 Model A 分析中提取上下文
-            previous_context = self._build_analysis_context_summary(previous_analysis)
-            logger.info(f"[{label}] Context from previous analysis: {previous_context[:200]}...")
-
-            chunk_data, chunk_analysis = await self._dual_model_chunk_with_timeout(
-                chunks[i], chunk_num, total_chunks, language_instruction,
-                per_chunk_timeout, previous_context=previous_context
-            )
-
-            chunk_sections = chunk_data.get("sections", [])
-            logger.info(f"[{label}] Got {len(chunk_sections)} sections")
-            all_sections.extend(chunk_sections)
-            previous_analysis = chunk_analysis
-
-        logger.info(
-            "Dual-model chunked processing complete: %d chunks -> %d total sections",
-            total_chunks,
-            len(all_sections)
-        )
-
-        # 合并结果
-        merged_data: dict = {
-            "title": title,
-            "sections": all_sections
-        }
-        if subtitle:
-            merged_data["subtitle"] = subtitle
-        if meta:
-            merged_data["meta"] = meta
-
-        return merged_data
+        return data
 
     async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
         """Convert markdown content to structured ArticleData JSON."""
         logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={len(markdown_content)}")
 
-        # 判断是否需要分块处理
-        if len(markdown_content) > self.chunk_size:
+        # 判断是否使用双模型模式
+        use_dual = (
+            self.dual_model_enabled
+            and (self.dual_model_threshold == 0 or len(markdown_content) > self.dual_model_threshold)
+        )
+
+        if use_dual:
             logger.info(
-                "Content length %d exceeds chunk_size %d, using chunked processing",
-                len(markdown_content),
-                self.chunk_size
+                "Using dual-model mode: analyst=%s, formatter=%s, content_length=%d",
+                self.model, self.formatter_model, len(markdown_content)
             )
-            if self.dual_model_enabled:
-                logger.info(
-                    "Dual-model mode enabled: analyst=%s, formatter=%s",
-                    self.model,
-                    self.formatter_model
-                )
-                data = await self._convert_chunked_dual_model(markdown_content, translate_to_chinese)
-            else:
-                logger.info("Single-model mode: using %s", self.model)
-                data = await self._convert_chunked(markdown_content, translate_to_chinese)
+            data = await self._convert_dual_model(markdown_content, translate_to_chinese)
         else:
-            # 短内容：使用单模型一步到位（现有的 SYSTEM_PROMPT + USER_PROMPT_TEMPLATE）
+            # 单模型一步到位（SYSTEM_PROMPT + USER_PROMPT_TEMPLATE）
+            logger.info("Using single-model mode: %s, content_length=%d", self.model, len(markdown_content))
             language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
             user_prompt = USER_PROMPT_TEMPLATE.format(
                 language_instruction=language_instruction,
@@ -1988,7 +1477,7 @@ class LLMService:
             "Timeout": "页面加载超时，请稍后重试或检查网址是否正确",
             "timeout": "页面加载超时，请稍后重试或检查网址是否正确",
             "LLM request timed out": "AI 处理超时，请稍后重试",
-            "LLM processing timed out": "AI 处理单个分块超时，请稍后重试",
+            "Dual-model processing timed out": "AI 双模型处理超时，请稍后重试",
             "maximum context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
             "context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
             "Request too large": "内容过长，超出模型可处理范围，请缩短文本后重试",
