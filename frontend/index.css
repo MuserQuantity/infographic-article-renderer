@@ -10,6 +10,13 @@ html {
   max-width: 100vw;
 }
 
+/* 确保根容器不会超出视口，防止微信浏览器自动缩放 */
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 html::-webkit-scrollbar,
 body::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
