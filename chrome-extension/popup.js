@@ -209,133 +209,48 @@ async function clearCachedYouTubeTaskId(cacheKey) {
 }
 
 /**
- * 从 YouTube 页面注入脚本，提取视频元数据并获取字幕内容。
- * 所有操作在 YouTube 页面上下文（MAIN world）中执行，确保有正确的 cookies 和 origin。
+ * 从 YouTube 页面提取视频元数据和字幕内容。
  *
- * 字幕获取策略（按优先级）：
- *   1. innertube /player API 获取新鲜字幕 URL → fetch 字幕内容
- *   2. 从 ytInitialData 提取 transcript params → get_transcript API
- *   3. 使用页面已有的 captionTracks baseUrl（可能过期）→ fetch 字幕
+ * 采用两阶段方案，不依赖任何 YouTube API：
+ *   阶段1（同步 executeScript）：提取视频元数据 + 触发"显示文字记录"面板 + 启动异步 fetch 备用
+ *   阶段2（轮询 executeScript）：从文字记录面板 DOM 读取字幕，或从异步 fetch 结果中读取
  *
- * 使用同步 XMLHttpRequest（避免 async executeScript 的兼容性问题）。
+ * 核心思路：让 YouTube 自己的 UI 机制去加载字幕数据，我们只负责从 DOM 中读取。
  */
 async function getYouTubeDataFromPage(tabId) {
   if (!tabId || !chrome?.scripting?.executeScript) {
     return null;
   }
+
+  // ===== 阶段1：提取元数据 + 触发字幕加载 =====
+  let phase1Result;
   try {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
       func: () => {
-        // ===== 辅助函数 =====
-
-        // 同步 GET 请求
-        function syncGet(url) {
-          try {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', url, false);
-            xhr.send();
-            if (xhr.status === 200 && xhr.responseText && xhr.responseText.length > 2) {
-              return xhr.responseText;
-            }
-          } catch (e) {
-            // 请求失败
-          }
-          return null;
-        }
-
-        // 同步 POST 请求（JSON body）
-        function syncPost(url, body) {
-          try {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', url, false);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.send(JSON.stringify(body));
-            if (xhr.status === 200 && xhr.responseText) {
-              return xhr.responseText;
-            }
-          } catch (e) {
-            // 请求失败
-          }
-          return null;
-        }
-
-        // 从 captionTracks 中选择最佳轨道
-        function selectBestTrack(captionTracks) {
-          const zhTrack = captionTracks.find(t => (t.languageCode || '').startsWith('zh'));
-          const enTrack = captionTracks.find(t => (t.languageCode || '').startsWith('en'));
-          return zhTrack || enTrack || captionTracks[0];
-        }
-
-        // 从 timedtext URL 解析字幕行（JSON3 + XML 回退）
-        function fetchCaptionLines(trackUrl) {
-          if (!trackUrl) return [];
-          // 尝试 JSON3 格式
-          try {
-            const json3Text = syncGet(trackUrl + '&fmt=json3');
-            if (json3Text) {
-              const json3Data = JSON.parse(json3Text);
-              const events = json3Data?.events || [];
-              const lines = [];
-              for (const event of events) {
-                if (!event.segs) continue;
-                const text = event.segs.map(seg => seg.utf8 || '').join('').trim();
-                if (text && text !== '\n') {
-                  lines.push(text);
-                }
-              }
-              if (lines.length > 0) return lines;
-            }
-          } catch (e) {
-            // JSON3 解析失败
-          }
-          // 回退到 XML 格式
-          try {
-            const xmlText = syncGet(trackUrl);
-            if (xmlText) {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(xmlText, 'text/xml');
-              const textElements = doc.querySelectorAll('text');
-              const lines = [];
-              for (const el of textElements) {
-                const content = (el.textContent || '').trim();
-                if (content) {
-                  lines.push(content);
-                }
-              }
-              if (lines.length > 0) return lines;
-            }
-          } catch (e) {
-            // XML 解析失败
-          }
-          return [];
-        }
-
-        // ===== 1. 获取视频 ID 和基本 metadata =====
+        // ----- 获取 playerResponse -----
         let playerResponse = null;
 
-        // 方法1: 从 movie_player 获取（SPA 导航后最可靠）
+        // 方法1: movie_player（SPA 导航后最可靠）
         try {
           const player = document.getElementById('movie_player');
           if (player && player.getPlayerResponse) {
             playerResponse = player.getPlayerResponse();
           }
-        } catch (e) {
-          // 忽略
-        }
+        } catch (e) {}
 
         // 方法2: ytInitialPlayerResponse
         if (!playerResponse && window.ytInitialPlayerResponse) {
           playerResponse = window.ytInitialPlayerResponse;
         }
 
-        // 方法3: 从 ytplayer.config 获取
+        // 方法3: ytplayer.config
         if (!playerResponse && window.ytplayer?.config?.args?.raw_player_response) {
           playerResponse = window.ytplayer.config.args.raw_player_response;
         }
 
-        // 方法4: 从 script 标签解析
+        // 方法4: script 标签解析
         if (!playerResponse) {
           const scripts = document.querySelectorAll('script');
           for (const script of scripts) {
@@ -345,21 +260,13 @@ async function getYouTubeDataFromPage(tabId) {
             if (idx !== -1) {
               try {
                 const jsonStr = text.substring(idx + marker.length);
-                let depth = 0;
-                let end = 0;
+                let depth = 0, end = 0;
                 for (let i = 0; i < jsonStr.length; i++) {
                   if (jsonStr[i] === '{') depth++;
-                  else if (jsonStr[i] === '}') {
-                    depth--;
-                    if (depth === 0) { end = i + 1; break; }
-                  }
+                  else if (jsonStr[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
                 }
-                if (end > 0) {
-                  playerResponse = JSON.parse(jsonStr.substring(0, end));
-                }
-              } catch (e) {
-                // 解析失败
-              }
+                if (end > 0) playerResponse = JSON.parse(jsonStr.substring(0, end));
+              } catch (e) {}
               break;
             }
           }
@@ -370,203 +277,330 @@ async function getYouTubeDataFromPage(tabId) {
         }
 
         const videoDetails = playerResponse.videoDetails || {};
-        const videoId = videoDetails.videoId;
-        const existingCaptionTracks = playerResponse.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+        const captionTracks = playerResponse.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
 
-        if (existingCaptionTracks.length === 0) {
+        if (captionTracks.length === 0) {
           return { error: 'no_captions' };
         }
 
-        // 用于 metadata 显示
-        const selectedExistingTrack = selectBestTrack(existingCaptionTracks);
+        // 选择最佳字幕轨道
+        const zhTrack = captionTracks.find(t => (t.languageCode || '').startsWith('zh'));
+        const enTrack = captionTracks.find(t => (t.languageCode || '').startsWith('en'));
+        const selectedTrack = zhTrack || enTrack || captionTracks[0];
 
-        let subtitleLines = [];
-        let fetchMethod = '';
-        let fetchError = '';
-
-        // ===== 2. 策略一：innertube /player API 获取新鲜字幕 URL =====
-        // 页面上已有的 captionTracks baseUrl 可能已过期（签名 URL 有时效性）
-        // 通过 /player API 重新请求，获取带新签名的 timedtext URL
+        // ----- 触发"显示文字记录"面板打开 -----
+        // 这是关键：让 YouTube 自己的 UI 加载字幕数据，我们从 DOM 读取
         try {
-          const apiKey = (window.ytcfg && window.ytcfg.get)
-            ? window.ytcfg.get('INNERTUBE_API_KEY')
-            : null;
-          const innertubeContext = (window.ytcfg && window.ytcfg.get)
-            ? window.ytcfg.get('INNERTUBE_CONTEXT')
-            : null;
+          // 方法A：直接展开描述区并点击"显示文字记录"按钮
+          const expandBtn = document.querySelector('tp-yt-paper-button#expand') ||
+                            document.querySelector('#description-inline-expander tp-yt-paper-button') ||
+                            document.querySelector('#expand');
+          if (expandBtn) expandBtn.click();
+        } catch (e) {}
 
-          if (apiKey && innertubeContext && videoId) {
-            const playerUrl = 'https://www.youtube.com/youtubei/v1/player?key=' + apiKey + '&prettyPrint=false';
-            const playerBody = {
-              context: innertubeContext,
-              videoId: videoId
-            };
-            const playerRespText = syncPost(playerUrl, playerBody);
-            if (playerRespText) {
-              const freshPlayerResp = JSON.parse(playerRespText);
-              const freshTracks = freshPlayerResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-              if (freshTracks.length > 0) {
-                const freshTrack = selectBestTrack(freshTracks);
-                const freshUrl = freshTrack.baseUrl || '';
-                if (freshUrl) {
-                  subtitleLines = fetchCaptionLines(freshUrl);
-                  if (subtitleLines.length > 0) {
-                    fetchMethod = 'innertube_player_fresh_url';
-                  }
-                }
+        // 延迟一小段时间让描述展开后，尝试点击 transcript 按钮
+        // 因为是同步执行，用 setTimeout 安排异步点击
+        try {
+          // 方法B：查找并点击视频描述中的"显示文字记录"按钮
+          setTimeout(() => {
+            try {
+              // 查找描述区的 transcript 按钮
+              const transcriptBtns = document.querySelectorAll('ytd-video-description-transcript-section-renderer button');
+              for (const btn of transcriptBtns) {
+                btn.click();
+                break;
               }
-            }
-          }
-        } catch (e) {
-          fetchError = 'player_api: ' + (e.message || String(e));
-        }
+            } catch (e) {}
+          }, 300);
 
-        // ===== 3. 策略二：从 ytInitialData 提取 transcript params → get_transcript API =====
-        if (subtitleLines.length === 0) {
-          try {
-            const apiKey = (window.ytcfg && window.ytcfg.get)
-              ? window.ytcfg.get('INNERTUBE_API_KEY')
-              : null;
-            const innertubeContext = (window.ytcfg && window.ytcfg.get)
-              ? window.ytcfg.get('INNERTUBE_CONTEXT')
-              : null;
-
-            // 从 ytInitialData 的 engagementPanels 中提取 transcript params
-            let transcriptParams = null;
-            let ytInitialData = window.ytInitialData;
-
-            // 如果 ytInitialData 不在 window 上，从 script 标签解析
-            if (!ytInitialData) {
-              const scripts = document.querySelectorAll('script');
-              for (const script of scripts) {
-                const text = script.textContent || '';
-                const marker = 'ytInitialData = ';
-                const idx = text.indexOf(marker);
-                if (idx !== -1) {
-                  try {
-                    const jsonStr = text.substring(idx + marker.length);
-                    let depth = 0;
-                    let end = 0;
-                    for (let i = 0; i < jsonStr.length; i++) {
-                      if (jsonStr[i] === '{') depth++;
-                      else if (jsonStr[i] === '}') {
-                        depth--;
-                        if (depth === 0) { end = i + 1; break; }
+          // 方法C：通过视频下方的"更多"菜单打开
+          setTimeout(() => {
+            try {
+              // 查找 engagement panel 按钮（如果有的话）
+              const menuBtns = document.querySelectorAll('ytd-menu-renderer yt-button-shape button, ytd-menu-renderer button');
+              for (const btn of menuBtns) {
+                const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+                if (label.includes('more') || label.includes('更多')) {
+                  btn.click();
+                  // 点开菜单后查找"显示文字记录"选项
+                  setTimeout(() => {
+                    try {
+                      const menuItems = document.querySelectorAll('ytd-menu-service-item-renderer tp-yt-paper-item, ytd-menu-service-item-renderer');
+                      for (const item of menuItems) {
+                        const itemText = (item.textContent || '').trim().toLowerCase();
+                        if (itemText.includes('transcript') || itemText.includes('文字记录') || itemText.includes('字幕')) {
+                          item.click();
+                          break;
+                        }
                       }
-                    }
-                    if (end > 0) {
-                      ytInitialData = JSON.parse(jsonStr.substring(0, end));
-                    }
-                  } catch (e) {
-                    // 解析失败
-                  }
+                    } catch (e) {}
+                  }, 500);
                   break;
                 }
               }
-            }
+            } catch (e) {}
+          }, 200);
+        } catch (e) {}
 
-            if (ytInitialData && apiKey && innertubeContext) {
-              // 查找 transcript engagement panel
-              const panels = ytInitialData.engagementPanels || [];
-              for (const panel of panels) {
-                const panelId = panel?.engagementPanelSectionListRenderer?.panelIdentifier;
-                if (panelId === 'engagement-panel-searchable-transcript') {
-                  // 路径: content.continuationItemRenderer.continuationEndpoint.getTranscriptEndpoint.params
-                  const content = panel?.engagementPanelSectionListRenderer?.content;
-                  const contItem = content?.continuationItemRenderer;
-                  transcriptParams = contItem?.continuationEndpoint?.getTranscriptEndpoint?.params;
-                  break;
-                }
-              }
+        // ----- 同时启动异步 fetch 作为备用方案 -----
+        // 使用页面原生 fetch（有完整 cookies/session），结果存入隐藏 DOM 元素
+        try {
+          let resultEl = document.getElementById('__yt_caption_async_result__');
+          if (resultEl) resultEl.remove();
+          resultEl = document.createElement('div');
+          resultEl.id = '__yt_caption_async_result__';
+          resultEl.style.display = 'none';
+          resultEl.setAttribute('data-status', 'loading');
+          document.body.appendChild(resultEl);
 
-              if (transcriptParams) {
-                const transcriptUrl = 'https://www.youtube.com/youtubei/v1/get_transcript?key=' + apiKey + '&prettyPrint=false';
-                const body = {
-                  context: innertubeContext,
-                  params: transcriptParams
-                };
-                const respText = syncPost(transcriptUrl, body);
-                if (respText) {
-                  const respData = JSON.parse(respText);
-                  // 解析 transcript 响应 - 尝试多种已知路径
-                  const paths = [
-                    respData?.actions,
-                    [respData]
-                  ];
-                  for (const actions of paths) {
-                    if (!actions || subtitleLines.length > 0) continue;
-                    for (const action of actions) {
-                      // 路径1: actions[].updateEngagementPanelAction.content.transcriptRenderer.body
-                      let cueGroups = action?.updateEngagementPanelAction?.content?.transcriptRenderer
-                        ?.body?.transcriptBodyRenderer?.cueGroups;
-                      // 路径2: actions[].updateEngagementPanelAction.content.transcriptRenderer.content.transcriptSearchPanelRenderer.body
-                      if (!cueGroups) {
-                        cueGroups = action?.updateEngagementPanelAction?.content?.transcriptRenderer
-                          ?.content?.transcriptSearchPanelRenderer?.body?.transcriptSegmentListRenderer?.initialSegments;
-                      }
-                      if (!cueGroups) continue;
-                      for (const group of cueGroups) {
-                        const cues = group?.transcriptCueGroupRenderer?.cues || [];
-                        for (const cue of cues) {
-                          const text = cue?.transcriptCueRenderer?.cue?.simpleText;
-                          if (text && text.trim()) {
-                            subtitleLines.push(text.trim());
-                          }
-                        }
-                        // 备用：直接是 transcriptSegmentRenderer
-                        if (group?.transcriptSegmentRenderer?.snippet?.runs) {
-                          const text = group.transcriptSegmentRenderer.snippet.runs.map(r => r.text || '').join('').trim();
-                          if (text) subtitleLines.push(text);
-                        }
-                      }
-                    }
-                  }
-                  if (subtitleLines.length > 0) {
-                    fetchMethod = 'innertube_get_transcript';
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            fetchError += '; get_transcript: ' + (e.message || String(e));
-          }
-        }
-
-        // ===== 4. 策略三：使用页面已有的 captionTracks baseUrl（回退） =====
-        if (subtitleLines.length === 0) {
-          const trackUrl = selectedExistingTrack.baseUrl || '';
+          const trackUrl = selectedTrack.baseUrl;
           if (trackUrl) {
-            subtitleLines = fetchCaptionLines(trackUrl);
-            if (subtitleLines.length > 0) {
-              fetchMethod = 'existing_caption_url';
-            } else {
-              fetchError += '; existing_url: empty or invalid response';
-            }
+            // 尝试用 fetch（async，有完整 session cookies）
+            fetch(trackUrl + '&fmt=json3', { credentials: 'include' })
+              .then(r => r.text())
+              .then(text => {
+                if (text && text.length > 10) {
+                  resultEl.textContent = text;
+                  resultEl.setAttribute('data-status', 'done');
+                } else {
+                  // JSON3 为空，尝试不带 fmt 的 XML
+                  return fetch(trackUrl, { credentials: 'include' }).then(r => r.text());
+                }
+              })
+              .then(text => {
+                if (text && resultEl.getAttribute('data-status') !== 'done') {
+                  if (text.length > 10) {
+                    resultEl.textContent = text;
+                    resultEl.setAttribute('data-status', 'done_xml');
+                  } else {
+                    resultEl.setAttribute('data-status', 'empty');
+                  }
+                }
+              })
+              .catch(err => {
+                resultEl.textContent = err.message || 'fetch error';
+                resultEl.setAttribute('data-status', 'error');
+              });
           }
-        }
+        } catch (e) {}
 
-        if (subtitleLines.length === 0) {
-          return { error: 'empty_captions', detail: fetchError };
-        }
-
-        // ===== 5. 返回完整数据 =====
+        // 返回元数据（同步）
         return {
-          videoId: videoId || '',
+          phase: 1,
+          videoId: videoDetails.videoId || '',
           title: videoDetails.title || '',
           author: videoDetails.author || '',
           shortDescription: videoDetails.shortDescription || '',
           keywords: videoDetails.keywords || [],
-          captionLanguage: selectedExistingTrack.name?.simpleText || selectedExistingTrack.name?.runs?.[0]?.text || selectedExistingTrack.languageCode || '',
-          availableCaptions: existingCaptionTracks.map(t => t.name?.simpleText || t.name?.runs?.[0]?.text || t.languageCode || ''),
-          subtitleLines: subtitleLines,
-          fetchMethod: fetchMethod
+          captionLanguage: selectedTrack.name?.simpleText || selectedTrack.name?.runs?.[0]?.text || selectedTrack.languageCode || '',
+          availableCaptions: captionTracks.map(t => t.name?.simpleText || t.name?.runs?.[0]?.text || t.languageCode || ''),
+          hasCaptions: captionTracks.length > 0
         };
       }
     });
-    return result || null;
+    phase1Result = result;
   } catch (error) {
     return null;
   }
+
+  if (!phase1Result || phase1Result.error) {
+    return phase1Result;
+  }
+
+  // ===== 阶段2：轮询读取字幕数据（最多 15 秒） =====
+  // 优先从 YouTube 的"文字记录"面板 DOM 读取，备用从 async fetch 结果读取
+  for (let attempt = 0; attempt < 15; attempt++) {
+    // 等待 1 秒（第一次等 2 秒让面板有时间加载）
+    await new Promise(r => setTimeout(r, attempt === 0 ? 2000 : 1000));
+
+    try {
+      const [{ result: pollResult }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: () => {
+          // ----- 尝试从 transcript 面板 DOM 读取字幕 -----
+          // YouTube 的文字记录面板使用 ytd-transcript-segment-renderer 元素
+          const transcriptSegments = document.querySelectorAll(
+            'ytd-transcript-segment-renderer .segment-text, ' +
+            'ytd-transcript-segment-renderer yt-formatted-string.segment-text, ' +
+            'ytd-transcript-segment-renderer .segment-text yt-formatted-string'
+          );
+
+          if (transcriptSegments.length > 0) {
+            const lines = [];
+            for (const seg of transcriptSegments) {
+              const text = (seg.textContent || '').trim();
+              if (text) lines.push(text);
+            }
+            if (lines.length > 0) {
+              // 清理：关闭 transcript 面板
+              try {
+                const closeBtn = document.querySelector(
+                  'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"] #visibility-button button, ' +
+                  'ytd-engagement-panel-title-header-renderer button[aria-label="Close"], ' +
+                  'ytd-engagement-panel-title-header-renderer button[aria-label="关闭"]'
+                );
+                if (closeBtn) closeBtn.click();
+              } catch (e) {}
+              // 清理 async fetch 结果元素
+              try {
+                const asyncEl = document.getElementById('__yt_caption_async_result__');
+                if (asyncEl) asyncEl.remove();
+              } catch (e) {}
+              return { status: 'done', lines: lines, method: 'transcript_panel_dom' };
+            }
+          }
+
+          // ----- 尝试直接从 Polymer 数据模型读取 -----
+          try {
+            const panels = document.querySelectorAll('ytd-engagement-panel-section-list-renderer');
+            for (const panel of panels) {
+              if (panel.data?.panelIdentifier === 'engagement-panel-searchable-transcript' ||
+                  panel.getAttribute('target-id') === 'engagement-panel-searchable-transcript') {
+                // 尝试从 Polymer 数据中获取 transcript 数据
+                const transcriptRenderer = panel.querySelector('ytd-transcript-renderer');
+                if (transcriptRenderer && transcriptRenderer.data) {
+                  const body = transcriptRenderer.data?.body?.transcriptBodyRenderer ||
+                               transcriptRenderer.data?.content?.transcriptSearchPanelRenderer?.body?.transcriptSegmentListRenderer;
+                  if (body) {
+                    const segments = body.cueGroups || body.initialSegments || [];
+                    const lines = [];
+                    for (const group of segments) {
+                      // cueGroup 格式
+                      const cues = group?.transcriptCueGroupRenderer?.cues || [];
+                      for (const cue of cues) {
+                        const text = cue?.transcriptCueRenderer?.cue?.simpleText;
+                        if (text && text.trim()) lines.push(text.trim());
+                      }
+                      // segment 格式
+                      if (group?.transcriptSegmentRenderer?.snippet?.runs) {
+                        const text = group.transcriptSegmentRenderer.snippet.runs.map(r => r.text || '').join('').trim();
+                        if (text) lines.push(text);
+                      }
+                    }
+                    if (lines.length > 0) {
+                      try {
+                        const asyncEl = document.getElementById('__yt_caption_async_result__');
+                        if (asyncEl) asyncEl.remove();
+                      } catch (e) {}
+                      return { status: 'done', lines: lines, method: 'transcript_polymer_data' };
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {}
+
+          // ----- 检查 async fetch 结果 -----
+          const asyncEl = document.getElementById('__yt_caption_async_result__');
+          if (asyncEl) {
+            const asyncStatus = asyncEl.getAttribute('data-status');
+            if (asyncStatus === 'done') {
+              const text = asyncEl.textContent;
+              asyncEl.remove();
+              try {
+                const json3Data = JSON.parse(text);
+                const events = json3Data?.events || [];
+                const lines = [];
+                for (const event of events) {
+                  if (!event.segs) continue;
+                  const line = event.segs.map(s => s.utf8 || '').join('').trim();
+                  if (line && line !== '\n') lines.push(line);
+                }
+                if (lines.length > 0) {
+                  return { status: 'done', lines: lines, method: 'async_fetch_json3' };
+                }
+              } catch (e) {}
+              return { status: 'fetch_empty', detail: 'JSON3 parse failed, len=' + text.length };
+            }
+            if (asyncStatus === 'done_xml') {
+              const text = asyncEl.textContent;
+              asyncEl.remove();
+              try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const textEls = doc.querySelectorAll('text');
+                const lines = [];
+                for (const el of textEls) {
+                  const content = (el.textContent || '').trim();
+                  if (content) lines.push(content);
+                }
+                if (lines.length > 0) {
+                  return { status: 'done', lines: lines, method: 'async_fetch_xml' };
+                }
+              } catch (e) {}
+              return { status: 'fetch_empty', detail: 'XML parse failed, len=' + text.length };
+            }
+            if (asyncStatus === 'error') {
+              const errMsg = asyncEl.textContent;
+              asyncEl.remove();
+              return { status: 'fetch_error', detail: errMsg };
+            }
+            if (asyncStatus === 'empty') {
+              asyncEl.remove();
+              return { status: 'fetch_empty', detail: 'response too short' };
+            }
+            // still loading, continue polling
+          }
+
+          // ----- 尝试再次触发 transcript 面板 -----
+          // 如果前面的触发没成功，再试一次不同的方法
+          try {
+            const existingPanel = document.querySelector(
+              'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]'
+            );
+            // 如果面板存在但隐藏，尝试展开
+            if (existingPanel) {
+              const visibility = existingPanel.getAttribute('visibility');
+              if (visibility !== 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED') {
+                existingPanel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED');
+              }
+            }
+          } catch (e) {}
+
+          return { status: 'loading' };
+        }
+      });
+
+      if (pollResult?.status === 'done') {
+        return {
+          videoId: phase1Result.videoId,
+          title: phase1Result.title,
+          author: phase1Result.author,
+          shortDescription: phase1Result.shortDescription,
+          keywords: phase1Result.keywords,
+          captionLanguage: phase1Result.captionLanguage,
+          availableCaptions: phase1Result.availableCaptions,
+          subtitleLines: pollResult.lines,
+          fetchMethod: pollResult.method
+        };
+      }
+
+      // 如果 async fetch 已经完成但返回空数据，不继续等待 fetch
+      if (pollResult?.status === 'fetch_empty' || pollResult?.status === 'fetch_error') {
+        // 继续等待 transcript 面板（它可能还在加载）
+        continue;
+      }
+
+    } catch (error) {
+      // executeScript 可能会失败（tab 关闭等），继续尝试
+      continue;
+    }
+  }
+
+  // ===== 清理 =====
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const el = document.getElementById('__yt_caption_async_result__');
+        if (el) el.remove();
+      }
+    });
+  } catch (e) {}
+
+  return { error: 'empty_captions', detail: 'All strategies failed after 15 seconds of polling' };
 }
 
 /**
@@ -1064,7 +1098,7 @@ analyzeBtnEl.addEventListener('click', async () => {
       }
     }
 
-    setStatus('检测到 YouTube 视频，正在提取字幕...');
+    setStatus('检测到 YouTube 视频，正在提取字幕（可能需要几秒钟）...');
     try {
       const subtitleData = await getYouTubeSubtitleText(currentTabUrl, currentTabId);
       analyzeBtnEl.disabled = false;
