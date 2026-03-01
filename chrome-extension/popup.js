@@ -5,6 +5,10 @@ const BILIBILI_BVID_PATTERN = /\/video\/(BV[0-9A-Za-z]+)/;
 const BILIBILI_AID_PATTERN = /\/video\/av(\d+)/i;
 const BILIBILI_TASKS_KEY = 'bilibiliTasks';
 
+// YouTube 常量
+const YOUTUBE_VIDEO_PATTERN = /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
+const YOUTUBE_TASKS_KEY = 'youtubeTasks';
+
 // DOM 元素
 const currentUrlEl = document.getElementById('currentUrl');
 const analyzeBtnEl = document.getElementById('analyzeBtn');
@@ -49,14 +53,15 @@ function showConfirmDialog(options) {
     // 构建内容
     let bodyHTML = '';
 
-    if (options.type === 'bilibili' && options.metadata) {
+    if ((options.type === 'bilibili' || options.type === 'youtube') && options.metadata) {
       const meta = options.metadata;
       bodyHTML += '<div>';
       if (meta.title) {
         bodyHTML += `<div class="confirm-info"><strong>📹 标题:</strong> ${escapeHtml(meta.title)}</div>`;
       }
       if (meta.owner?.name) {
-        bodyHTML += `<div class="confirm-info"><strong>👤 UP主:</strong> ${escapeHtml(meta.owner.name)}</div>`;
+        const ownerLabel = options.type === 'youtube' ? '👤 频道:' : '👤 UP主:';
+        bodyHTML += `<div class="confirm-info"><strong>${ownerLabel}</strong> ${escapeHtml(meta.owner.name)}</div>`;
       }
       if (meta.part) {
         bodyHTML += `<div class="confirm-info"><strong>📑 分P:</strong> ${escapeHtml(meta.part)}</div>`;
@@ -68,6 +73,13 @@ function showConfirmDialog(options) {
       if (Array.isArray(meta.tags) && meta.tags.length > 0) {
         const tagsText = meta.tags.slice(0, 5).join(', ') + (meta.tags.length > 5 ? '...' : '');
         bodyHTML += `<div class="confirm-info"><strong>🏷️ 标签:</strong> ${escapeHtml(tagsText)}</div>`;
+      }
+      // YouTube 特有：字幕语言信息
+      if (options.type === 'youtube' && meta.captionLanguage) {
+        bodyHTML += `<div class="confirm-info"><strong>🗣️ 字幕语言:</strong> ${escapeHtml(meta.captionLanguage)}</div>`;
+        if (Array.isArray(meta.availableCaptions) && meta.availableCaptions.length > 1) {
+          bodyHTML += `<div class="confirm-info"><strong>📋 可用字幕:</strong> ${escapeHtml(meta.availableCaptions.join(', '))}</div>`;
+        }
       }
       bodyHTML += `<div class="confirm-info"><strong>🌐 翻译:</strong> ${options.translate ? '是' : '否'}</div>`;
       bodyHTML += '</div>';
@@ -148,6 +160,527 @@ confirmOverlayEl.addEventListener('click', (e) => {
 
 function isBilibiliVideoUrl(url) {
   return url.startsWith(BILIBILI_VIDEO_PREFIX);
+}
+
+// ==================== YouTube 相关函数 ====================
+
+function isYouTubeVideoUrl(url) {
+  return YOUTUBE_VIDEO_PATTERN.test(url);
+}
+
+function extractYouTubeVideoId(url) {
+  const match = url.match(YOUTUBE_VIDEO_PATTERN);
+  return match ? match[1] : null;
+}
+
+function buildYouTubeSourceUrl(videoId) {
+  return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+function buildYouTubeCacheKey(videoId, translateToChinese) {
+  if (!videoId) return null;
+  const translatePart = translateToChinese ? 'zh' : 'raw';
+  return `yt:${videoId}:${translatePart}`;
+}
+
+async function getCachedYouTubeTaskId(cacheKey) {
+  if (!cacheKey) return null;
+  const result = await chrome.storage.local.get([YOUTUBE_TASKS_KEY]);
+  const cacheMap = result[YOUTUBE_TASKS_KEY] || {};
+  return cacheMap[cacheKey] || null;
+}
+
+async function setCachedYouTubeTaskId(cacheKey, taskId) {
+  if (!cacheKey) return;
+  const result = await chrome.storage.local.get([YOUTUBE_TASKS_KEY]);
+  const cacheMap = result[YOUTUBE_TASKS_KEY] || {};
+  cacheMap[cacheKey] = taskId;
+  await chrome.storage.local.set({ [YOUTUBE_TASKS_KEY]: cacheMap });
+}
+
+async function clearCachedYouTubeTaskId(cacheKey) {
+  if (!cacheKey) return;
+  const result = await chrome.storage.local.get([YOUTUBE_TASKS_KEY]);
+  const cacheMap = result[YOUTUBE_TASKS_KEY] || {};
+  if (cacheKey in cacheMap) {
+    delete cacheMap[cacheKey];
+    await chrome.storage.local.set({ [YOUTUBE_TASKS_KEY]: cacheMap });
+  }
+}
+
+/**
+ * 从 YouTube 页面提取视频元数据和字幕内容。
+ *
+ * 采用两阶段方案，不依赖任何 YouTube API：
+ *   阶段1（同步 executeScript）：提取视频元数据 + 触发"显示文字记录"面板 + 启动异步 fetch 备用
+ *   阶段2（轮询 executeScript）：从文字记录面板 DOM 读取字幕，或从异步 fetch 结果中读取
+ *
+ * 核心思路：让 YouTube 自己的 UI 机制去加载字幕数据，我们只负责从 DOM 中读取。
+ */
+async function getYouTubeDataFromPage(tabId) {
+  if (!tabId || !chrome?.scripting?.executeScript) {
+    return null;
+  }
+
+  // ===== 阶段1：提取元数据 + 触发字幕加载 =====
+  let phase1Result;
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        // ----- 获取 playerResponse -----
+        let playerResponse = null;
+
+        // 方法1: movie_player（SPA 导航后最可靠）
+        try {
+          const player = document.getElementById('movie_player');
+          if (player && player.getPlayerResponse) {
+            playerResponse = player.getPlayerResponse();
+          }
+        } catch (e) {}
+
+        // 方法2: ytInitialPlayerResponse
+        if (!playerResponse && window.ytInitialPlayerResponse) {
+          playerResponse = window.ytInitialPlayerResponse;
+        }
+
+        // 方法3: ytplayer.config
+        if (!playerResponse && window.ytplayer?.config?.args?.raw_player_response) {
+          playerResponse = window.ytplayer.config.args.raw_player_response;
+        }
+
+        // 方法4: script 标签解析
+        if (!playerResponse) {
+          const scripts = document.querySelectorAll('script');
+          for (const script of scripts) {
+            const text = script.textContent || '';
+            const marker = 'ytInitialPlayerResponse = ';
+            const idx = text.indexOf(marker);
+            if (idx !== -1) {
+              try {
+                const jsonStr = text.substring(idx + marker.length);
+                let depth = 0, end = 0;
+                for (let i = 0; i < jsonStr.length; i++) {
+                  if (jsonStr[i] === '{') depth++;
+                  else if (jsonStr[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+                }
+                if (end > 0) playerResponse = JSON.parse(jsonStr.substring(0, end));
+              } catch (e) {}
+              break;
+            }
+          }
+        }
+
+        if (!playerResponse) {
+          return { error: 'no_player_response' };
+        }
+
+        const videoDetails = playerResponse.videoDetails || {};
+        const captionTracks = playerResponse.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+
+        if (captionTracks.length === 0) {
+          return { error: 'no_captions' };
+        }
+
+        // 选择最佳字幕轨道
+        const zhTrack = captionTracks.find(t => (t.languageCode || '').startsWith('zh'));
+        const enTrack = captionTracks.find(t => (t.languageCode || '').startsWith('en'));
+        const selectedTrack = zhTrack || enTrack || captionTracks[0];
+
+        // ----- 触发"显示文字记录"面板打开 -----
+        // 这是关键：让 YouTube 自己的 UI 加载字幕数据，我们从 DOM 读取
+        try {
+          // 方法A：直接展开描述区并点击"显示文字记录"按钮
+          const expandBtn = document.querySelector('tp-yt-paper-button#expand') ||
+                            document.querySelector('#description-inline-expander tp-yt-paper-button') ||
+                            document.querySelector('#expand');
+          if (expandBtn) expandBtn.click();
+        } catch (e) {}
+
+        // 延迟一小段时间让描述展开后，尝试点击 transcript 按钮
+        // 因为是同步执行，用 setTimeout 安排异步点击
+        try {
+          // 方法B：查找并点击视频描述中的"显示文字记录"按钮
+          setTimeout(() => {
+            try {
+              // 查找描述区的 transcript 按钮
+              const transcriptBtns = document.querySelectorAll('ytd-video-description-transcript-section-renderer button');
+              for (const btn of transcriptBtns) {
+                btn.click();
+                break;
+              }
+            } catch (e) {}
+          }, 300);
+
+          // 方法C：通过视频下方的"更多"菜单打开
+          setTimeout(() => {
+            try {
+              // 查找 engagement panel 按钮（如果有的话）
+              const menuBtns = document.querySelectorAll('ytd-menu-renderer yt-button-shape button, ytd-menu-renderer button');
+              for (const btn of menuBtns) {
+                const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+                if (label.includes('more') || label.includes('更多')) {
+                  btn.click();
+                  // 点开菜单后查找"显示文字记录"选项
+                  setTimeout(() => {
+                    try {
+                      const menuItems = document.querySelectorAll('ytd-menu-service-item-renderer tp-yt-paper-item, ytd-menu-service-item-renderer');
+                      for (const item of menuItems) {
+                        const itemText = (item.textContent || '').trim().toLowerCase();
+                        if (itemText.includes('transcript') || itemText.includes('文字记录') || itemText.includes('字幕')) {
+                          item.click();
+                          break;
+                        }
+                      }
+                    } catch (e) {}
+                  }, 500);
+                  break;
+                }
+              }
+            } catch (e) {}
+          }, 200);
+        } catch (e) {}
+
+        // ----- 同时启动异步 fetch 作为备用方案 -----
+        // 使用页面原生 fetch（有完整 cookies/session），结果存入隐藏 DOM 元素
+        try {
+          let resultEl = document.getElementById('__yt_caption_async_result__');
+          if (resultEl) resultEl.remove();
+          resultEl = document.createElement('div');
+          resultEl.id = '__yt_caption_async_result__';
+          resultEl.style.display = 'none';
+          resultEl.setAttribute('data-status', 'loading');
+          document.body.appendChild(resultEl);
+
+          const trackUrl = selectedTrack.baseUrl;
+          if (trackUrl) {
+            // 尝试用 fetch（async，有完整 session cookies）
+            fetch(trackUrl + '&fmt=json3', { credentials: 'include' })
+              .then(r => r.text())
+              .then(text => {
+                if (text && text.length > 10) {
+                  resultEl.textContent = text;
+                  resultEl.setAttribute('data-status', 'done');
+                } else {
+                  // JSON3 为空，尝试不带 fmt 的 XML
+                  return fetch(trackUrl, { credentials: 'include' }).then(r => r.text());
+                }
+              })
+              .then(text => {
+                if (text && resultEl.getAttribute('data-status') !== 'done') {
+                  if (text.length > 10) {
+                    resultEl.textContent = text;
+                    resultEl.setAttribute('data-status', 'done_xml');
+                  } else {
+                    resultEl.setAttribute('data-status', 'empty');
+                  }
+                }
+              })
+              .catch(err => {
+                resultEl.textContent = err.message || 'fetch error';
+                resultEl.setAttribute('data-status', 'error');
+              });
+          }
+        } catch (e) {}
+
+        // 返回元数据（同步）
+        return {
+          phase: 1,
+          videoId: videoDetails.videoId || '',
+          title: videoDetails.title || '',
+          author: videoDetails.author || '',
+          shortDescription: videoDetails.shortDescription || '',
+          keywords: videoDetails.keywords || [],
+          captionLanguage: selectedTrack.name?.simpleText || selectedTrack.name?.runs?.[0]?.text || selectedTrack.languageCode || '',
+          availableCaptions: captionTracks.map(t => t.name?.simpleText || t.name?.runs?.[0]?.text || t.languageCode || ''),
+          hasCaptions: captionTracks.length > 0
+        };
+      }
+    });
+    phase1Result = result;
+  } catch (error) {
+    return null;
+  }
+
+  if (!phase1Result || phase1Result.error) {
+    return phase1Result;
+  }
+
+  // ===== 阶段2：轮询读取字幕数据（最多 15 秒） =====
+  // 优先从 YouTube 的"文字记录"面板 DOM 读取，备用从 async fetch 结果读取
+  for (let attempt = 0; attempt < 15; attempt++) {
+    // 等待 1 秒（第一次等 2 秒让面板有时间加载）
+    await new Promise(r => setTimeout(r, attempt === 0 ? 2000 : 1000));
+
+    try {
+      const [{ result: pollResult }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: () => {
+          // ----- 尝试从 transcript 面板 DOM 读取字幕 -----
+          // YouTube 的文字记录面板使用 ytd-transcript-segment-renderer 元素
+          const transcriptSegments = document.querySelectorAll(
+            'ytd-transcript-segment-renderer .segment-text, ' +
+            'ytd-transcript-segment-renderer yt-formatted-string.segment-text, ' +
+            'ytd-transcript-segment-renderer .segment-text yt-formatted-string'
+          );
+
+          if (transcriptSegments.length > 0) {
+            const lines = [];
+            for (const seg of transcriptSegments) {
+              const text = (seg.textContent || '').trim();
+              if (text) lines.push(text);
+            }
+            if (lines.length > 0) {
+              // 清理：关闭 transcript 面板
+              try {
+                const closeBtn = document.querySelector(
+                  'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"] #visibility-button button, ' +
+                  'ytd-engagement-panel-title-header-renderer button[aria-label="Close"], ' +
+                  'ytd-engagement-panel-title-header-renderer button[aria-label="关闭"]'
+                );
+                if (closeBtn) closeBtn.click();
+              } catch (e) {}
+              // 清理 async fetch 结果元素
+              try {
+                const asyncEl = document.getElementById('__yt_caption_async_result__');
+                if (asyncEl) asyncEl.remove();
+              } catch (e) {}
+              return { status: 'done', lines: lines, method: 'transcript_panel_dom' };
+            }
+          }
+
+          // ----- 尝试直接从 Polymer 数据模型读取 -----
+          try {
+            const panels = document.querySelectorAll('ytd-engagement-panel-section-list-renderer');
+            for (const panel of panels) {
+              if (panel.data?.panelIdentifier === 'engagement-panel-searchable-transcript' ||
+                  panel.getAttribute('target-id') === 'engagement-panel-searchable-transcript') {
+                // 尝试从 Polymer 数据中获取 transcript 数据
+                const transcriptRenderer = panel.querySelector('ytd-transcript-renderer');
+                if (transcriptRenderer && transcriptRenderer.data) {
+                  const body = transcriptRenderer.data?.body?.transcriptBodyRenderer ||
+                               transcriptRenderer.data?.content?.transcriptSearchPanelRenderer?.body?.transcriptSegmentListRenderer;
+                  if (body) {
+                    const segments = body.cueGroups || body.initialSegments || [];
+                    const lines = [];
+                    for (const group of segments) {
+                      // cueGroup 格式
+                      const cues = group?.transcriptCueGroupRenderer?.cues || [];
+                      for (const cue of cues) {
+                        const text = cue?.transcriptCueRenderer?.cue?.simpleText;
+                        if (text && text.trim()) lines.push(text.trim());
+                      }
+                      // segment 格式
+                      if (group?.transcriptSegmentRenderer?.snippet?.runs) {
+                        const text = group.transcriptSegmentRenderer.snippet.runs.map(r => r.text || '').join('').trim();
+                        if (text) lines.push(text);
+                      }
+                    }
+                    if (lines.length > 0) {
+                      try {
+                        const asyncEl = document.getElementById('__yt_caption_async_result__');
+                        if (asyncEl) asyncEl.remove();
+                      } catch (e) {}
+                      return { status: 'done', lines: lines, method: 'transcript_polymer_data' };
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {}
+
+          // ----- 检查 async fetch 结果 -----
+          const asyncEl = document.getElementById('__yt_caption_async_result__');
+          if (asyncEl) {
+            const asyncStatus = asyncEl.getAttribute('data-status');
+            if (asyncStatus === 'done') {
+              const text = asyncEl.textContent;
+              asyncEl.remove();
+              try {
+                const json3Data = JSON.parse(text);
+                const events = json3Data?.events || [];
+                const lines = [];
+                for (const event of events) {
+                  if (!event.segs) continue;
+                  const line = event.segs.map(s => s.utf8 || '').join('').trim();
+                  if (line && line !== '\n') lines.push(line);
+                }
+                if (lines.length > 0) {
+                  return { status: 'done', lines: lines, method: 'async_fetch_json3' };
+                }
+              } catch (e) {}
+              return { status: 'fetch_empty', detail: 'JSON3 parse failed, len=' + text.length };
+            }
+            if (asyncStatus === 'done_xml') {
+              const text = asyncEl.textContent;
+              asyncEl.remove();
+              try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/xml');
+                const textEls = doc.querySelectorAll('text');
+                const lines = [];
+                for (const el of textEls) {
+                  const content = (el.textContent || '').trim();
+                  if (content) lines.push(content);
+                }
+                if (lines.length > 0) {
+                  return { status: 'done', lines: lines, method: 'async_fetch_xml' };
+                }
+              } catch (e) {}
+              return { status: 'fetch_empty', detail: 'XML parse failed, len=' + text.length };
+            }
+            if (asyncStatus === 'error') {
+              const errMsg = asyncEl.textContent;
+              asyncEl.remove();
+              return { status: 'fetch_error', detail: errMsg };
+            }
+            if (asyncStatus === 'empty') {
+              asyncEl.remove();
+              return { status: 'fetch_empty', detail: 'response too short' };
+            }
+            // still loading, continue polling
+          }
+
+          // ----- 尝试再次触发 transcript 面板 -----
+          // 如果前面的触发没成功，再试一次不同的方法
+          try {
+            const existingPanel = document.querySelector(
+              'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]'
+            );
+            // 如果面板存在但隐藏，尝试展开
+            if (existingPanel) {
+              const visibility = existingPanel.getAttribute('visibility');
+              if (visibility !== 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED') {
+                existingPanel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED');
+              }
+            }
+          } catch (e) {}
+
+          return { status: 'loading' };
+        }
+      });
+
+      if (pollResult?.status === 'done') {
+        return {
+          videoId: phase1Result.videoId,
+          title: phase1Result.title,
+          author: phase1Result.author,
+          shortDescription: phase1Result.shortDescription,
+          keywords: phase1Result.keywords,
+          captionLanguage: phase1Result.captionLanguage,
+          availableCaptions: phase1Result.availableCaptions,
+          subtitleLines: pollResult.lines,
+          fetchMethod: pollResult.method
+        };
+      }
+
+      // 如果 async fetch 已经完成但返回空数据，不继续等待 fetch
+      if (pollResult?.status === 'fetch_empty' || pollResult?.status === 'fetch_error') {
+        // 继续等待 transcript 面板（它可能还在加载）
+        continue;
+      }
+
+    } catch (error) {
+      // executeScript 可能会失败（tab 关闭等），继续尝试
+      continue;
+    }
+  }
+
+  // ===== 清理 =====
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const el = document.getElementById('__yt_caption_async_result__');
+        if (el) el.remove();
+      }
+    });
+  } catch (e) {}
+
+  return { error: 'empty_captions', detail: 'All strategies failed after 15 seconds of polling' };
+}
+
+/**
+ * 获取 YouTube 视频字幕文本。
+ * 整个提取+fetch 过程在 YouTube 页面上下文中完成（解决 cookies/CORS 问题）。
+ */
+async function getYouTubeSubtitleText(videoUrl, tabId) {
+  const videoId = extractYouTubeVideoId(videoUrl);
+  if (!videoId) {
+    throw new Error('未识别到 YouTube 视频 ID');
+  }
+
+  const data = await getYouTubeDataFromPage(tabId);
+  if (!data) {
+    throw new Error('无法获取 YouTube 页面信息，请刷新页面后重试');
+  }
+
+  if (data.error === 'no_player_response') {
+    throw new Error('无法获取 YouTube 页面信息，请刷新页面后重试');
+  }
+  if (data.error === 'no_captions') {
+    throw new Error('该视频没有可用字幕');
+  }
+  if (data.error === 'no_track_url') {
+    throw new Error('字幕轨道地址缺失');
+  }
+  if (data.error === 'empty_captions') {
+    const detail = data.detail ? ` (${data.detail})` : '';
+    throw new Error(`字幕内容为空${detail}`);
+  }
+  if (data.error) {
+    throw new Error(`获取字幕失败: ${data.error}`);
+  }
+
+  const subtitleText = data.subtitleLines.join('\n');
+
+  // 构建元数据（与 Bilibili 格式对齐，用于确认对话框）
+  const metadata = {
+    title: data.title,
+    desc: data.shortDescription,
+    owner: { name: data.author },
+    tags: (data.keywords || []).slice(0, 10),
+    videoId: videoId,
+    captionLanguage: data.captionLanguage,
+    availableCaptions: data.availableCaptions || []
+  };
+
+  return {
+    metadata,
+    subtitleText,
+    getFullText: () => {
+      let fullText = '';
+
+      if (metadata.title) {
+        fullText += `# ${metadata.title}\n\n`;
+      }
+
+      if (metadata.owner?.name) {
+        fullText += `**频道**: ${metadata.owner.name}\n`;
+      }
+
+      if (metadata.captionLanguage) {
+        fullText += `**字幕语言**: ${metadata.captionLanguage}\n`;
+      }
+
+      if (metadata.desc) {
+        const descText = metadata.desc.length > 500 ? metadata.desc.substring(0, 500) + '...' : metadata.desc;
+        fullText += `\n**视频简介**:\n${descText}\n`;
+      }
+
+      if (Array.isArray(metadata.tags) && metadata.tags.length > 0) {
+        fullText += `\n**标签**: ${metadata.tags.join(', ')}\n`;
+      }
+
+      fullText += '\n---\n\n';
+      fullText += `**字幕内容**:\n\n${subtitleText}`;
+
+      return fullText;
+    }
+  };
 }
 
 function extractBilibiliId(url) {
@@ -524,6 +1057,75 @@ analyzeBtnEl.addEventListener('click', async () => {
         sourceUrl
       );
       await setCachedBilibiliTaskId(cacheKey, taskId);
+      const targetUrl = `${serverUrl}/?id=${encodeURIComponent(taskId)}`;
+      chrome.tabs.create({ url: targetUrl });
+      window.close();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '字幕获取失败';
+      setStatus(message, 'error');
+      analyzeBtnEl.disabled = false;
+    }
+    return;
+  }
+
+  // YouTube 视频处理
+  if (isYouTubeVideoUrl(currentTabUrl)) {
+    analyzeBtnEl.disabled = true;
+    const videoId = extractYouTubeVideoId(currentTabUrl);
+    if (!videoId) {
+      setStatus('无法识别 YouTube 视频 ID', 'error');
+      analyzeBtnEl.disabled = false;
+      return;
+    }
+
+    const cacheKey = buildYouTubeCacheKey(videoId, translate);
+    const sourceUrl = buildYouTubeSourceUrl(videoId);
+
+    // 检查缓存
+    const cachedTaskId = await getCachedYouTubeTaskId(cacheKey);
+    if (cachedTaskId) {
+      setStatus('检测到已解析记录，正在打开...');
+      try {
+        const task = await fetchJson(`${serverUrl}/api/tasks/${cachedTaskId}`);
+        if (task && task.status !== 'failed') {
+          const targetUrl = `${serverUrl}/?id=${encodeURIComponent(task.id)}`;
+          chrome.tabs.create({ url: targetUrl });
+          window.close();
+          return;
+        }
+      } catch (error) {
+        await clearCachedYouTubeTaskId(cacheKey);
+      }
+    }
+
+    setStatus('检测到 YouTube 视频，正在提取字幕（可能需要几秒钟）...');
+    try {
+      const subtitleData = await getYouTubeSubtitleText(currentTabUrl, currentTabId);
+      analyzeBtnEl.disabled = false;
+
+      // 显示自定义确认对话框
+      const confirmed = await showConfirmDialog({
+        type: 'youtube',
+        title: '确认分析 YouTube 视频',
+        metadata: subtitleData.metadata,
+        subtitleText: subtitleData.subtitleText,
+        translate
+      });
+
+      if (!confirmed) {
+        setStatus('已取消');
+        return;
+      }
+
+      analyzeBtnEl.disabled = true;
+      setStatus('提交解析中...');
+      const taskId = await createTextTask(
+        serverUrl,
+        subtitleData.getFullText(),
+        translate,
+        sourceUrl
+      );
+      await setCachedYouTubeTaskId(cacheKey, taskId);
       const targetUrl = `${serverUrl}/?id=${encodeURIComponent(taskId)}`;
       chrome.tabs.create({ url: targetUrl });
       window.close();
