@@ -508,15 +508,17 @@ def split_markdown_into_chunks(content: str, chunk_size: int) -> list[str]:
     if current_chunk.strip():
         chunks.append(current_chunk.strip())
 
-    # 合并过小的块：如果某个块太小（< chunk_size 的 10%），和相邻块合并
-    min_chunk_size = chunk_size // 10  # 1500 chars for default 15000
+    # 合并过小的块：如果某个块太小（< chunk_size 的 20%），和相邻块合并
+    # 允许合并后略微超过 chunk_size（最多 120%），避免浪费 LLM 调用
+    min_chunk_size = chunk_size // 5  # 3000 chars for default 15000
+    merge_limit = int(chunk_size * 1.2)  # 18000 for default 15000
     if len(chunks) > 1:
         merged: list[str] = []
         for chunk in chunks:
-            if merged and len(merged[-1]) < min_chunk_size and len(merged[-1]) + len(chunk) <= chunk_size:
+            if merged and len(merged[-1]) < min_chunk_size and len(merged[-1]) + len(chunk) <= merge_limit:
                 # 前一个块太小，合并到前一个
                 merged[-1] = merged[-1] + '\n\n' + chunk
-            elif merged and len(chunk) < min_chunk_size and len(merged[-1]) + len(chunk) <= chunk_size:
+            elif merged and len(chunk) < min_chunk_size and len(merged[-1]) + len(chunk) <= merge_limit:
                 # 当前块太小，合并到前一个
                 merged[-1] = merged[-1] + '\n\n' + chunk
             else:
