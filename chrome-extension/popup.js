@@ -209,10 +209,11 @@ async function clearCachedYouTubeTaskId(cacheKey) {
 }
 
 /**
- * 从 YouTube 页面注入脚本提取视频元数据和字幕轨道信息。
- * YouTube 页面内嵌 ytInitialPlayerResponse，包含 captions.playerCaptionsTracklistRenderer.captionTracks。
+ * 从 YouTube 页面注入脚本，提取视频元数据并获取字幕内容。
+ * 所有操作在 YouTube 页面上下文（MAIN world）中执行，确保有正确的 cookies 和 origin。
+ * 返回: { videoId, title, author, shortDescription, keywords, captionLanguage, availableCaptions, subtitleLines }
  */
-async function getYouTubePageInfo(tabId) {
+async function getYouTubeDataFromPage(tabId) {
   if (!tabId || !chrome?.scripting?.executeScript) {
     return null;
   }
@@ -220,8 +221,8 @@ async function getYouTubePageInfo(tabId) {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: () => {
-        // 尝试从页面全局变量获取 player response
+      func: async () => {
+        // ===== 1. 获取 playerResponse =====
         let playerResponse = null;
 
         // 方法1: ytInitialPlayerResponse（页面首次加载时存在）
@@ -234,7 +235,19 @@ async function getYouTubePageInfo(tabId) {
           playerResponse = window.ytplayer.config.args.raw_player_response;
         }
 
-        // 方法3: 从 document 中的 script 标签解析
+        // 方法3: 从 movie_player 获取（SPA 导航后）
+        if (!playerResponse) {
+          try {
+            const player = document.getElementById('movie_player');
+            if (player && player.getPlayerResponse) {
+              playerResponse = player.getPlayerResponse();
+            }
+          } catch (e) {
+            // 忽略
+          }
+        }
+
+        // 方法4: 从 document 中的 script 标签解析
         if (!playerResponse) {
           const scripts = document.querySelectorAll('script');
           for (const script of scripts) {
@@ -243,22 +256,13 @@ async function getYouTubePageInfo(tabId) {
             const idx = text.indexOf(marker);
             if (idx !== -1) {
               try {
-                const jsonStr = text.substring(idx + marker.length);
-                // 找到 JSON 对象的结尾
-                let depth = 0;
-                let end = 0;
-                for (let i = 0; i < jsonStr.length; i++) {
-                  if (jsonStr[i] === '{') depth++;
-                  else if (jsonStr[i] === '}') {
-                    depth--;
-                    if (depth === 0) { end = i + 1; break; }
-                  }
-                }
-                if (end > 0) {
-                  playerResponse = JSON.parse(jsonStr.substring(0, end));
+                // 找到分号结尾
+                const endIdx = text.indexOf('};', idx + marker.length);
+                if (endIdx !== -1) {
+                  playerResponse = JSON.parse(text.substring(idx + marker.length, endIdx + 1));
                 }
               } catch (e) {
-                // 解析失败，继续尝试
+                // 解析失败
               }
               break;
             }
@@ -266,29 +270,84 @@ async function getYouTubePageInfo(tabId) {
         }
 
         if (!playerResponse) {
-          return null;
+          return { error: 'no_player_response' };
         }
 
         const videoDetails = playerResponse.videoDetails || {};
         const captions = playerResponse.captions;
         const captionTracks = captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
 
+        if (captionTracks.length === 0) {
+          return { error: 'no_captions' };
+        }
+
+        // ===== 2. 选择最佳字幕轨道 =====
+        const zhTrack = captionTracks.find(t => (t.languageCode || '').startsWith('zh'));
+        const enTrack = captionTracks.find(t => (t.languageCode || '').startsWith('en'));
+        const selectedTrack = zhTrack || enTrack || captionTracks[0];
+        const trackUrl = selectedTrack.baseUrl || '';
+
+        if (!trackUrl) {
+          return { error: 'no_track_url' };
+        }
+
+        // ===== 3. 在页面上下文中 fetch 字幕（有 YouTube cookies） =====
+        let subtitleLines = [];
+
+        // 尝试 JSON3 格式
+        try {
+          const json3Url = trackUrl + '&fmt=json3';
+          const resp = await fetch(json3Url);
+          if (resp.ok) {
+            const json3Data = await resp.json();
+            const events = json3Data?.events || [];
+            for (const event of events) {
+              if (!event.segs) continue;
+              const text = event.segs.map(seg => seg.utf8 || '').join('').trim();
+              if (text && text !== '\n') {
+                subtitleLines.push(text);
+              }
+            }
+          }
+        } catch (e) {
+          // JSON3 失败
+        }
+
+        // 回退到 XML 格式
+        if (subtitleLines.length === 0) {
+          try {
+            const resp = await fetch(trackUrl);
+            if (resp.ok) {
+              const xmlText = await resp.text();
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(xmlText, 'text/xml');
+              const textElements = doc.querySelectorAll('text');
+              for (const el of textElements) {
+                const content = (el.textContent || '').trim();
+                if (content) {
+                  subtitleLines.push(content);
+                }
+              }
+            }
+          } catch (e) {
+            // XML 也失败了
+          }
+        }
+
+        if (subtitleLines.length === 0) {
+          return { error: 'empty_captions' };
+        }
+
+        // ===== 4. 返回完整数据 =====
         return {
           videoId: videoDetails.videoId || '',
           title: videoDetails.title || '',
           author: videoDetails.author || '',
-          channelId: videoDetails.channelId || '',
           shortDescription: videoDetails.shortDescription || '',
-          lengthSeconds: videoDetails.lengthSeconds || '0',
-          viewCount: videoDetails.viewCount || '0',
           keywords: videoDetails.keywords || [],
-          captionTracks: captionTracks.map(track => ({
-            baseUrl: track.baseUrl || '',
-            languageCode: track.languageCode || '',
-            name: track.name?.simpleText || track.name?.runs?.[0]?.text || '',
-            kind: track.kind || '',
-            vssId: track.vssId || ''
-          }))
+          captionLanguage: selectedTrack.name?.simpleText || selectedTrack.name?.runs?.[0]?.text || selectedTrack.languageCode || '',
+          availableCaptions: captionTracks.map(t => t.name?.simpleText || t.name?.runs?.[0]?.text || t.languageCode || ''),
+          subtitleLines: subtitleLines
         };
       }
     });
@@ -299,46 +358,8 @@ async function getYouTubePageInfo(tabId) {
 }
 
 /**
- * 解析 YouTube timedtext XML 格式为纯文本行。
- * YouTube 字幕 API 返回的 XML 格式: <transcript><text start="0" dur="1.5">Hello</text>...</transcript>
- */
-function parseTimedTextXml(xmlText) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'text/xml');
-  const textElements = doc.querySelectorAll('text');
-  const lines = [];
-  for (const el of textElements) {
-    const content = el.textContent || '';
-    // 解码 HTML 实体并清理
-    const cleaned = content.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
-    if (cleaned) {
-      lines.push(cleaned);
-    }
-  }
-  return lines;
-}
-
-/**
- * 解析 YouTube JSON3 格式字幕为纯文本行。
- */
-function parseJson3Captions(json3Data) {
-  const events = json3Data?.events || [];
-  const lines = [];
-  for (const event of events) {
-    if (!event.segs) continue;
-    const text = event.segs.map(seg => seg.utf8 || '').join('').trim();
-    if (text && text !== '\n') {
-      lines.push(text);
-    }
-  }
-  return lines;
-}
-
-/**
  * 获取 YouTube 视频字幕文本。
- * 1. 从页面注入获取字幕轨道 URL
- * 2. 优先选择中文字幕，其次英文，最后第一个可用
- * 3. 获取字幕内容并解析为文本
+ * 整个提取+fetch 过程在 YouTube 页面上下文中完成（解决 cookies/CORS 问题）。
  */
 async function getYouTubeSubtitleText(videoUrl, tabId) {
   const videoId = extractYouTubeVideoId(videoUrl);
@@ -346,63 +367,38 @@ async function getYouTubeSubtitleText(videoUrl, tabId) {
     throw new Error('未识别到 YouTube 视频 ID');
   }
 
-  const pageInfo = await getYouTubePageInfo(tabId);
-  if (!pageInfo) {
-    throw new Error('无法获取 YouTube 页面信息，请确保页面已完全加载后重试');
+  const data = await getYouTubeDataFromPage(tabId);
+  if (!data) {
+    throw new Error('无法获取 YouTube 页面信息，请刷新页面后重试');
   }
 
-  const captionTracks = pageInfo.captionTracks || [];
-  if (captionTracks.length === 0) {
+  if (data.error === 'no_player_response') {
+    throw new Error('无法获取 YouTube 页面信息，请刷新页面后重试');
+  }
+  if (data.error === 'no_captions') {
     throw new Error('该视频没有可用字幕');
   }
-
-  // 选择最佳字幕轨道：优先中文 > 英文 > 第一个
-  const zhTrack = captionTracks.find(t => t.languageCode.startsWith('zh'));
-  const enTrack = captionTracks.find(t => t.languageCode.startsWith('en'));
-  const selectedTrack = zhTrack || enTrack || captionTracks[0];
-
-  if (!selectedTrack.baseUrl) {
+  if (data.error === 'no_track_url') {
     throw new Error('字幕轨道地址缺失');
   }
-
-  // 尝试用 JSON3 格式获取（更可靠），如果失败则用 XML
-  let lines = [];
-  try {
-    const json3Url = selectedTrack.baseUrl + '&fmt=json3';
-    const json3Response = await fetch(json3Url);
-    if (json3Response.ok) {
-      const json3Data = await json3Response.json();
-      lines = parseJson3Captions(json3Data);
-    }
-  } catch (e) {
-    // JSON3 失败，回退到 XML
-  }
-
-  if (lines.length === 0) {
-    // 回退到 XML 格式
-    const xmlResponse = await fetch(selectedTrack.baseUrl);
-    if (!xmlResponse.ok) {
-      throw new Error(`获取字幕失败: ${xmlResponse.status}`);
-    }
-    const xmlText = await xmlResponse.text();
-    lines = parseTimedTextXml(xmlText);
-  }
-
-  if (lines.length === 0) {
+  if (data.error === 'empty_captions') {
     throw new Error('字幕内容为空');
   }
+  if (data.error) {
+    throw new Error(`获取字幕失败: ${data.error}`);
+  }
 
-  const subtitleText = lines.join('\n');
+  const subtitleText = data.subtitleLines.join('\n');
 
   // 构建元数据（与 Bilibili 格式对齐，用于确认对话框）
   const metadata = {
-    title: pageInfo.title,
-    desc: pageInfo.shortDescription,
-    owner: { name: pageInfo.author },
-    tags: pageInfo.keywords.slice(0, 10),
+    title: data.title,
+    desc: data.shortDescription,
+    owner: { name: data.author },
+    tags: (data.keywords || []).slice(0, 10),
     videoId: videoId,
-    captionLanguage: selectedTrack.name || selectedTrack.languageCode,
-    availableCaptions: captionTracks.map(t => t.name || t.languageCode)
+    captionLanguage: data.captionLanguage,
+    availableCaptions: data.availableCaptions || []
   };
 
   return {
