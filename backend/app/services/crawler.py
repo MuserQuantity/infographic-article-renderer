@@ -188,6 +188,10 @@ class _ArticleExtractor(HTMLParser):
                     self._capture_stack.append((key, self._depth))
                     self._buffer = []
 
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]):
+        """Handle self-closing tags like <br/>, <img ... />. Only call handle_starttag, skip handle_endtag."""
+        self.handle_starttag(tag, attrs)
+
     def handle_endtag(self, tag: str):
         raw = f"</{tag}>"
         if self._capture_stack:
