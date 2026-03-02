@@ -137,10 +137,18 @@ class _ArticleExtractor(HTMLParser):
         'link', 'meta', 'param', 'source', 'track', 'wbr',
     ])
 
+    # HTML5 elements whose closing tag is optional.
+    # HTMLParser does NOT auto-close these, so unclosed ones cause depth drift.
+    # We skip depth tracking for them entirely (like void elements).
+    _OPTIONAL_END_ELEMENTS = frozenset([
+        'p', 'li', 'dd', 'dt', 'td', 'th', 'tr', 'thead', 'tbody',
+        'tfoot', 'option', 'optgroup', 'colgroup',
+    ])
+
     def __init__(self):
         super().__init__()
         self._results: dict[str, list[str]] = {}  # selector_key -> [html_content]
-        self._capture_stack: list[tuple[str, int]] = []  # (selector_key, depth)
+        self._capture_stack: list[tuple[str, int, str]] = []  # (selector_key, depth, tag_name)
         self._depth = 0
         self._buffer: list[str] = []
 
@@ -174,9 +182,11 @@ class _ArticleExtractor(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
         raw = self.get_starttag_text() or f"<{tag}>"
-        is_void = tag.lower() in self._VOID_ELEMENTS
+        tag_lower = tag.lower()
+        is_void = tag_lower in self._VOID_ELEMENTS
+        is_optional = tag_lower in self._OPTIONAL_END_ELEMENTS
 
-        if not is_void:
+        if not is_void and not is_optional:
             self._depth += 1
 
         if self._capture_stack:
@@ -185,7 +195,7 @@ class _ArticleExtractor(HTMLParser):
             if not is_void:
                 key = self._match_selector(tag, attrs)
                 if key is not None:
-                    self._capture_stack.append((key, self._depth))
+                    self._capture_stack.append((key, self._depth, tag_lower))
                     self._buffer = []
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]):
@@ -195,16 +205,17 @@ class _ArticleExtractor(HTMLParser):
             self._buffer.append(raw)
 
     def handle_endtag(self, tag: str):
-        if tag.lower() in self._VOID_ELEMENTS:
-            # Void elements have no depth impact; ignore their closing tags
+        tag_lower = tag.lower()
+        if tag_lower in self._VOID_ELEMENTS or tag_lower in self._OPTIONAL_END_ELEMENTS:
+            # Void / optional-end elements have no depth impact; just buffer if capturing
             if self._capture_stack:
                 self._buffer.append(f"</{tag}>")
             return
         raw = f"</{tag}>"
         if self._capture_stack:
-            key, start_depth = self._capture_stack[-1]
-            if self._depth == start_depth:
-                # Closing tag matches the captured element
+            key, start_depth, capture_tag = self._capture_stack[-1]
+            if self._depth == start_depth and tag_lower == capture_tag:
+                # Closing tag matches the captured element by both depth and name
                 content = ''.join(self._buffer)
                 self._results.setdefault(key, []).append(content)
                 self._capture_stack.pop()
