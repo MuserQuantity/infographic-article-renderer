@@ -195,6 +195,11 @@ class _ArticleExtractor(HTMLParser):
             self._buffer.append(raw)
 
     def handle_endtag(self, tag: str):
+        if tag.lower() in self._VOID_ELEMENTS:
+            # Void elements have no depth impact; ignore their closing tags
+            if self._capture_stack:
+                self._buffer.append(f"</{tag}>")
+            return
         raw = f"</{tag}>"
         if self._capture_stack:
             key, start_depth = self._capture_stack[-1]
