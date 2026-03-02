@@ -131,6 +131,12 @@ class _ArticleExtractor(HTMLParser):
     正确处理嵌套标签，避免 regex 的跨标签匹配问题。
     """
 
+    # HTML5 void elements (no closing tag, no depth increment)
+    _VOID_ELEMENTS = frozenset([
+        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+        'link', 'meta', 'param', 'source', 'track', 'wbr',
+    ])
+
     def __init__(self):
         super().__init__()
         self._results: dict[str, list[str]] = {}  # selector_key -> [html_content]
@@ -167,16 +173,20 @@ class _ArticleExtractor(HTMLParser):
         return None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
-        self._depth += 1
         raw = self.get_starttag_text() or f"<{tag}>"
+        is_void = tag.lower() in self._VOID_ELEMENTS
+
+        if not is_void:
+            self._depth += 1
 
         if self._capture_stack:
             self._buffer.append(raw)
         else:
-            key = self._match_selector(tag, attrs)
-            if key is not None:
-                self._capture_stack.append((key, self._depth))
-                self._buffer = []
+            if not is_void:
+                key = self._match_selector(tag, attrs)
+                if key is not None:
+                    self._capture_stack.append((key, self._depth))
+                    self._buffer = []
 
     def handle_endtag(self, tag: str):
         raw = f"</{tag}>"
