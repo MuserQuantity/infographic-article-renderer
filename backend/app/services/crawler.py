@@ -272,10 +272,9 @@ def _strip_tags(html: str) -> str:
     """逐标签移除无关 HTML 标签（避免跨标签匹配问题）。"""
     result = html
     for tag in _STRIP_TAG_NAMES:
-        result = re.sub(
-            rf'<{tag}\b[^>]*>.*?</{tag}>',
-            '', result, flags=re.DOTALL | re.IGNORECASE
-        )
+        pattern = re.compile(rf'<{tag}\b[^>]*>.*?</{tag}>', re.DOTALL | re.IGNORECASE)
+        while pattern.search(result):
+            result = pattern.sub('', result)
     result = _HTML_COMMENT_RE.sub('', result)
     return result
 
