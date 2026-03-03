@@ -4,6 +4,7 @@ import json
 import re
 import httpx
 import html2text
+from html.parser import HTMLParser
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -110,20 +111,146 @@ def clean_markdown(text: str, max_length: int = 0) -> str:
     return result.strip()
 
 
-# HTML content selectors for simple crawler fallback (priority order)
-_ARTICLE_SELECTORS = [
-    r'<article[^>]*>(.*?)</article>',
-    r'<main[^>]*>(.*?)</main>',
-    r'<div[^>]*class="[^"]*(?:post-content|entry-content|article-body|body markup|story-body|post-body)[^"]*"[^>]*>(.*?)</div>',
-    r'<div[^>]*(?:role="main"|id="article-body")[^>]*>(.*?)</div>',
+# Tags to strip from HTML before converting to markdown (per-tag to avoid cross-matching)
+_STRIP_TAG_NAMES = ['nav', 'footer', 'header', 'aside', 'script', 'style', 'noscript', 'iframe', 'svg']
+_HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
+
+# CSS selectors for article extraction (priority order)
+_ARTICLE_CSS_SELECTORS = [
+    ('article', {}),
+    ('main', {}),
+    ('div', {'class': ['post-content', 'entry-content', 'article-body', 'body markup', 'story-body', 'post-body']}),
+    ('div', {'role': 'main'}),
+    ('div', {'id': 'article-body'}),
 ]
 
-# Tags to strip from HTML before converting to markdown
-_STRIP_TAGS_RE = re.compile(
-    r'<(?:nav|footer|header|aside|script|style|noscript|iframe|svg)\b[^>]*>.*?</(?:nav|footer|header|aside|script|style|noscript|iframe|svg)>',
-    re.DOTALL | re.IGNORECASE
-)
-_HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
+
+class _ArticleExtractor(HTMLParser):
+    """
+    基于 HTMLParser 的文章正文提取器。
+    正确处理嵌套标签，避免 regex 的跨标签匹配问题。
+    """
+
+    # HTML5 void elements (no closing tag, no depth increment)
+    _VOID_ELEMENTS = frozenset([
+        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+        'link', 'meta', 'param', 'source', 'track', 'wbr',
+    ])
+
+    # HTML5 elements whose closing tag is optional.
+    # HTMLParser does NOT auto-close these, so unclosed ones cause depth drift.
+    # We skip depth tracking for them entirely (like void elements).
+    _OPTIONAL_END_ELEMENTS = frozenset([
+        'p', 'li', 'dd', 'dt', 'td', 'th', 'tr', 'thead', 'tbody',
+        'tfoot', 'option', 'optgroup', 'colgroup',
+    ])
+
+    def __init__(self):
+        super().__init__()
+        self._results: dict[str, list[str]] = {}  # selector_key -> [html_content]
+        self._capture_stack: list[tuple[str, int, str]] = []  # (selector_key, depth, tag_name)
+        self._depth = 0
+        self._buffer: list[str] = []
+
+    def _match_selector(self, tag: str, attrs: list[tuple[str, str | None]]) -> str | None:
+        """Check if tag+attrs matches any article selector. Returns selector key or None."""
+        attrs_dict: dict[str, str] = {}
+        for k, v in attrs:
+            if v is not None:
+                attrs_dict[k] = v
+
+        for sel_tag, sel_attrs in _ARTICLE_CSS_SELECTORS:
+            if tag != sel_tag:
+                continue
+            if not sel_attrs:
+                return f"{sel_tag}"
+            match = True
+            for attr_name, attr_val in sel_attrs.items():
+                actual = attrs_dict.get(attr_name, '')
+                if isinstance(attr_val, list):
+                    # Check if any class value is in the element's class attribute
+                    if not any(cv in actual for cv in attr_val):
+                        match = False
+                        break
+                else:
+                    if attr_val != actual:
+                        match = False
+                        break
+            if match:
+                return f"{sel_tag}.{list(sel_attrs.values())[0]}"
+        return None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
+        raw = self.get_starttag_text() or f"<{tag}>"
+        tag_lower = tag.lower()
+        is_void = tag_lower in self._VOID_ELEMENTS
+        is_optional = tag_lower in self._OPTIONAL_END_ELEMENTS
+
+        if not is_void and not is_optional:
+            self._depth += 1
+
+        if self._capture_stack:
+            self._buffer.append(raw)
+        else:
+            if not is_void:
+                key = self._match_selector(tag, attrs)
+                if key is not None:
+                    self._capture_stack.append((key, self._depth, tag_lower))
+                    self._buffer = []
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]):
+        """Handle self-closing tags like <br/>, <img ... />, <p/>. No depth change."""
+        raw = self.get_starttag_text() or f"<{tag}>"
+        if self._capture_stack:
+            self._buffer.append(raw)
+
+    def handle_endtag(self, tag: str):
+        tag_lower = tag.lower()
+        if tag_lower in self._VOID_ELEMENTS or tag_lower in self._OPTIONAL_END_ELEMENTS:
+            # Void / optional-end elements have no depth impact; just buffer if capturing
+            if self._capture_stack:
+                self._buffer.append(f"</{tag}>")
+            return
+        raw = f"</{tag}>"
+        if self._capture_stack:
+            key, start_depth, capture_tag = self._capture_stack[-1]
+            if self._depth == start_depth and tag_lower == capture_tag:
+                # Closing tag matches the captured element by both depth and name
+                content = ''.join(self._buffer)
+                self._results.setdefault(key, []).append(content)
+                self._capture_stack.pop()
+                self._buffer = []
+            else:
+                self._buffer.append(raw)
+        self._depth = max(0, self._depth - 1)
+
+    def handle_data(self, data: str):
+        if self._capture_stack:
+            self._buffer.append(data)
+
+    def handle_entityref(self, name: str):
+        if self._capture_stack:
+            self._buffer.append(f"&{name};")
+
+    def handle_charref(self, name: str):
+        if self._capture_stack:
+            self._buffer.append(f"&#{name};")
+
+    def handle_comment(self, data: str):
+        pass  # skip comments
+
+    def get_best_content(self) -> str | None:
+        """Return the best extracted content (first selector with meaningful content)."""
+        for sel_tag, sel_attrs in _ARTICLE_CSS_SELECTORS:
+            if sel_attrs:
+                key = f"{sel_tag}.{list(sel_attrs.values())[0]}"
+            else:
+                key = sel_tag
+            contents = self._results.get(key, [])
+            for content in contents:
+                if len(content.strip()) > 200:
+                    return content
+        return None
 
 
 def _html_to_markdown(html_content: str) -> str:
@@ -141,25 +268,38 @@ def _html_to_markdown(html_content: str) -> str:
     return h.handle(html_content)
 
 
+def _strip_tags(html: str) -> str:
+    """逐标签移除无关 HTML 标签（避免跨标签匹配问题）。"""
+    result = html
+    for tag in _STRIP_TAG_NAMES:
+        pattern = re.compile(rf'<{tag}\b[^>]*>.*?</{tag}>', re.DOTALL | re.IGNORECASE)
+        while pattern.search(result):
+            result = pattern.sub('', result)
+    result = _HTML_COMMENT_RE.sub('', result)
+    return result
+
+
 def _extract_article_html(full_html: str) -> str:
     """
     从完整 HTML 中提取文章正文部分。
-    按优先级尝试多个选择器，返回第一个匹配的内容。
+    使用 HTMLParser 正确处理嵌套标签。
     """
-    # First strip nav/footer/script etc.
-    cleaned = _STRIP_TAGS_RE.sub('', full_html)
-    cleaned = _HTML_COMMENT_RE.sub('', cleaned)
+    # First strip nav/footer/script etc. (per-tag, no cross-matching)
+    cleaned = _strip_tags(full_html)
 
-    # Try each selector
-    for selector in _ARTICLE_SELECTORS:
-        match = re.search(selector, cleaned, re.DOTALL | re.IGNORECASE)
-        if match:
-            content = match.group(1)
-            if len(content.strip()) > 200:  # meaningful content
-                return content
+    # Use HTMLParser to extract article content (handles nested tags correctly)
+    extractor = _ArticleExtractor()
+    try:
+        extractor.feed(cleaned)
+    except Exception as e:
+        logger.warning("HTMLParser failed: %s, falling back to body content", e)
+
+    content = extractor.get_best_content()
+    if content:
+        return content
 
     # Fallback: use <body> content
-    body_match = re.search(r'<body[^>]*>(.*?)</body>', cleaned, re.DOTALL | re.IGNORECASE)
+    body_match = re.search(r'<body[^>]*>(.*)</body>', cleaned, re.DOTALL | re.IGNORECASE)
     if body_match:
         return body_match.group(1)
 
@@ -216,7 +356,7 @@ class CrawlerService:
                 raise Exception(f"Crawl failed: {error_msg}")
 
             # 优先使用 fit_markdown（经过内容提取的精简版），回退到 raw_markdown
-            markdown_data = data.get("markdown", {})
+            markdown_data = data.get("markdown") or {}
             fit_markdown = markdown_data.get("fit_markdown", "")
             raw_markdown = markdown_data.get("raw_markdown", "")
 
