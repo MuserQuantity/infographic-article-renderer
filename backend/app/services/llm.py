@@ -394,7 +394,7 @@ data
 1. 提取文章标题作为 title，副标题作为 subtitle
 2. 尽量提取作者、日期信息到 meta；不要编造，缺失则省略
 3. 根据内容逻辑划分为多个 sections，每个大的主题或章节应该是一个独立的 section
-4. 为了尽可能完整还原内容：每个 section 建议 3-8 个内容块；段落 2-6 句；列表/时间线 5-12 项；统计/评分 3-6 项。内容很长时允许更多 sections 与内容块，宁可拆分也不要过度压缩
+4. 【极其重要 — 完整性】你必须覆盖文章的所有主题/章节/论点，不得省略任何部分。每个 section 建议 3-8 个内容块；段落 2-6 句；列表/时间线 5-12 项；统计/评分 3-6 项。内容很长时允许更多 sections 与内容块，宁可拆分也不要过度压缩。如果文章有 N 个主题/章节，输出应至少有 N 个 sections
 5. 根据内容特点选择合适的 ContentBlock 类型；不确定时使用 paragraph
 6. 允许少量行内 Markdown（仅限文本字段）：**粗体**、[文本](https://example.com)
 7. 禁止任何其他 Markdown 语法或代码块：
@@ -415,6 +415,8 @@ data
 17. 文章开头的第一个 section 建议以非 paragraph 的视觉型 block 开场（如 tags、stat、highlight、callout），快速吸引读者注意力
 
 {language_instruction}
+
+【最终检查】输出前请确认：你的 sections 是否覆盖了文章从开头到结尾的所有主题？如果有遍漏，请补充完整后再输出。
 
 请直接输出 JSON，不要包含 Markdown 代码块标记，不要输出任何解释或多余文本。
 
@@ -1662,7 +1664,16 @@ class LLMService:
             ]
             data = await self._call_llm_and_parse_json(messages, content_length)
 
-        logger.info(f"JSON parsed successfully, sections count: {len(data.get('sections', []))}")
+        sections_count = len(data.get('sections', []))
+        logger.info(f"JSON parsed successfully, sections count: {sections_count}")
+
+        # 完整性检查：如果内容较长但 sections 很少，记录警告
+        expected_min_sections = max(2, content_length // 2000)
+        if sections_count < expected_min_sections:
+            logger.warning(
+                "Output may be incomplete: content_length=%d, sections=%d, expected_min=%d",
+                content_length, sections_count, expected_min_sections
+            )
 
         try:
             # 修正 comparison rows 格式错误
