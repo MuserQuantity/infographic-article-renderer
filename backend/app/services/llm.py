@@ -850,6 +850,11 @@ def normalize_blocks(data: dict) -> dict:
                 text = str(normalized_block.get("text", "")).strip()
                 if not text:
                     continue
+                # 去除 LLM 输出的多余引号包裹（如 ""内容"" → 内容）
+                while len(text) >= 2 and text[0] in '"\u201c\u300c' and text[-1] in '"\u201d\u300d':
+                    text = text[1:-1].strip()
+                if not text:
+                    continue
                 normalized_block["text"] = text
                 author = normalized_block.get("author")
                 if author is not None:
