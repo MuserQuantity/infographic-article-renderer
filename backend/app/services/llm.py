@@ -854,7 +854,7 @@ def normalize_blocks(data: dict) -> dict:
                 items = normalized_block.get("items") or []
                 if not isinstance(items, list):
                     items = [items]
-                normalized_items = [_strip_markdown(str(item).strip()) for item in items if str(item).strip()]
+                normalized_items = [s for s in (_strip_markdown(str(item).strip()) for item in items if str(item).strip()) if s]
                 if not normalized_items:
                     continue
                 normalized_block["items"] = normalized_items
