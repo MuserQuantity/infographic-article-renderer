@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     llm_dual_model_threshold: int = 15000  # 超过此字符数启用双模型模式（0 表示始终使用双模型）
     llm_formatter_model_name: str = ""  # Model B 模型名称，为空则使用 llm_model_name
     llm_dual_model_enabled: bool = True  # 是否启用双模型架构（仅对长文本生效）
+    llm_chunk_threshold: int = 50000  # 超过此字符数启用分块处理（0 表示不分块）
+    llm_chunk_size: int = 15000  # 每块目标大小（字符数）
 
     # Crawl4AI Configuration
     crawl4ai_url: str = "http://localhost:11235"

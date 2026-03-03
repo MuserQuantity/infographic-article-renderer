@@ -582,6 +582,34 @@ ANALYST_USER_PROMPT_FIRST = """请分析以下文章内容，输出结构化的�
 
 {content}"""
 
+# Model A: 后续 chunk 的用户提示词（携带上一个 chunk 的上下文摘要）
+ANALYST_USER_PROMPT_CONTINUATION = """请继续分析以下文章内容（这是前文的后续部分）。
+
+上文信息：
+{prev_context}
+
+输出格式要求：
+1. 不需要重复文章标题、副标题、作者等元信息（已在前文提取）
+2. 直接从新的章节开始，每个章节格式：
+
+====
+【章节】章节标题
+
+[内容类型] 具体内容...
+====
+
+3. 内容类型写法与之前相同：[paragraph]、[list:bullet]、[stat]、[quote]、[timeline] 等
+4. 确保与前文要求保持语义连贯，不要重复前文已覆盖的内容
+
+{language_instruction}
+
+请完整分析，不要遗漏内容。输出结构化分析报告，不需要输出 JSON。
+
+---
+后续文章内容：
+
+{content}"""
+
 # Model B: JSON 格式化模型 — 专注于将分析报告转换为严格 JSON
 FORMATTER_SYSTEM_PROMPT = """你是一个 JSON 格式化专家。你的唯一任务是将结构化的内容分析报告转换为严格符合 schema 的 JSON 输出。
 
@@ -647,6 +675,29 @@ type ContentBlock =
 
 {analysis}"""
 
+# Model B: 后续 chunk 的用户提示词（只输出 sections 数组，不需要 title/meta）
+FORMATTER_USER_PROMPT_CONTINUATION = """请将以下内容分析报告转换为 JSON 格式。
+
+注意：这是文章的后续部分，不需要输出 title、subtitle、meta。
+只需要输出一个包含 sections 数组的 JSON 对象：
+
+{{
+  "sections": [
+    {{
+      "title": "章节标题",
+      "content": [内容块...]
+    }}
+  ]
+}}
+
+ContentBlock 类型定义与之前相同（paragraph、list、stat、quote、timeline、comparison、table、code、accordion、steps、progress、highlight、definition、proscons、divider、linkcard、rating、grid、callout、tags 等）。
+
+请直接输出 JSON，不要包含 Markdown 代码块标记。
+
+---
+内容分析报告：
+
+{analysis}"""
 
 
 def fix_comparison_rows(data: dict) -> dict:
@@ -1121,6 +1172,8 @@ class LLMService:
         self.formatter_model = settings.llm_formatter_model_name or self.model
         self.dual_model_enabled = settings.llm_dual_model_enabled
         self.dual_model_threshold = max(0, settings.llm_dual_model_threshold)
+        self.chunk_threshold = max(0, settings.llm_chunk_threshold)
+        self.chunk_size = max(5000, settings.llm_chunk_size)
         self.max_retries = max(0, settings.llm_max_retries)
         self.retry_base_delay = max(0.1, settings.llm_retry_base_delay)
         self.retry_max_delay = max(self.retry_base_delay, settings.llm_retry_max_delay)
@@ -1377,6 +1430,46 @@ class LLMService:
 
         return data
 
+    @staticmethod
+    def _split_content(content: str, chunk_size: int) -> list[str]:
+        """
+        将内容按段落边界分割为多个 chunk，每个 chunk 不超过 chunk_size 字符。
+        优先按双换行（段落）分割，不足则按单换行分割。
+        """
+        if len(content) <= chunk_size:
+            return [content]
+
+        # 先按双换行拆成段落
+        paragraphs = content.split('\n\n')
+        # 如果只有一个大段（如纯字幕），按单换行二次拆分
+        if len(paragraphs) <= 1:
+            paragraphs = content.split('\n')
+
+        chunks: list[str] = []
+        current_chunk: list[str] = []
+        current_size = 0
+        separator = '\n\n' if '\n\n' in content else '\n'
+
+        for para in paragraphs:
+            para_len = len(para) + len(separator)
+            if current_size + para_len > chunk_size and current_chunk:
+                chunks.append(separator.join(current_chunk))
+                current_chunk = [para]
+                current_size = len(para)
+            else:
+                current_chunk.append(para)
+                current_size += para_len
+
+        if current_chunk:
+            # 如果最后一个 chunk 太小，合并到前一个
+            last_text = separator.join(current_chunk)
+            if chunks and len(last_text) < chunk_size // 3:
+                chunks[-1] = chunks[-1] + separator + last_text
+            else:
+                chunks.append(last_text)
+
+        return chunks if chunks else [content]
+
     async def _convert_dual_model(
         self,
         markdown_content: str,
@@ -1422,25 +1515,142 @@ class LLMService:
 
         return data
 
-    async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
-        """Convert markdown content to structured ArticleData JSON."""
-        logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={len(markdown_content)}")
+    async def _convert_chunked(
+        self,
+        markdown_content: str,
+        translate_to_chinese: bool
+    ) -> dict:
+        """
+        分块处理超长内容：将内容分割为多个 chunk，每个 chunk 走双模型管线（A→B），
+        后续 chunk 携带前一个 chunk 的上下文摘要，最后合并所有结果。
+        """
+        chunks = self._split_content(markdown_content, self.chunk_size)
+        language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
 
-        # 判断是否使用双模型模式
-        use_dual = (
-            self.dual_model_enabled
-            and (self.dual_model_threshold == 0 or len(markdown_content) > self.dual_model_threshold)
+        logger.info(
+            "Chunked processing: total_length=%d, chunks=%d, sizes=%s, analyst=%s, formatter=%s",
+            len(markdown_content),
+            len(chunks),
+            [len(c) for c in chunks],
+            self.model,
+            self.formatter_model
         )
 
-        if use_dual:
+        all_sections: list[dict] = []
+        merged_data: dict = {}  # title, subtitle, meta from first chunk
+        prev_context = ""  # 上一个 chunk 的最后一个 section 摘要
+
+        for i, chunk in enumerate(chunks):
+            chunk_label = f"Chunk {i + 1}/{len(chunks)}"
+            logger.info("[%s] Processing, size=%d chars", chunk_label, len(chunk))
+
+            # Phase 1: Model A 分析
+            if i == 0:
+                # 第一个 chunk 使用完整提示词
+                user_prompt = ANALYST_USER_PROMPT_FIRST.format(
+                    language_instruction=language_instruction,
+                    content=chunk
+                )
+            else:
+                # 后续 chunk 使用续写提示词 + 上下文
+                user_prompt = ANALYST_USER_PROMPT_CONTINUATION.format(
+                    language_instruction=language_instruction,
+                    prev_context=prev_context,
+                    content=chunk
+                )
+
+            messages = [
+                {"role": "system", "content": ANALYST_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ]
+            analysis = await self._call_llm_text(
+                messages, len(chunk), label=f"Analyst-{chunk_label}"
+            )
+            logger.info("[%s] Model A analysis complete, length=%d", chunk_label, len(analysis))
+
+            # Phase 2: Model B 格式化为 JSON
+            if i == 0:
+                formatter_prompt = FORMATTER_USER_PROMPT_FIRST.format(analysis=analysis)
+            else:
+                formatter_prompt = FORMATTER_USER_PROMPT_CONTINUATION.format(analysis=analysis)
+
+            formatter_messages = [
+                {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
+                {"role": "user", "content": formatter_prompt}
+            ]
+            chunk_data = await self._call_llm_and_parse_json(
+                formatter_messages, len(analysis),
+                label=f"Formatter-{chunk_label}",
+                model_override=self.formatter_model
+            )
+
+            chunk_sections = chunk_data.get('sections', [])
+            logger.info(
+                "[%s] Model B formatting complete, sections=%d",
+                chunk_label, len(chunk_sections)
+            )
+
+            # 收集结果
+            if i == 0:
+                merged_data = {
+                    'title': chunk_data.get('title', ''),
+                    'subtitle': chunk_data.get('subtitle'),
+                    'meta': chunk_data.get('meta'),
+                }
+            all_sections.extend(chunk_sections)
+
+            # 构建上下文摘要给下一个 chunk
+            if chunk_sections:
+                last_section = chunk_sections[-1]
+                last_title = last_section.get('title', '')
+                # 提取最后一个 section 的内容摘要（前两个 block 的文本）
+                content_blocks = last_section.get('content', [])
+                summary_parts = []
+                for block in content_blocks[:2]:
+                    text = block.get('text', '') or block.get('title', '')
+                    if text:
+                        summary_parts.append(text[:100])
+                prev_context = f"上一部分最后讨论的章节：【{last_title}】\n内容摘要：{'；'.join(summary_parts)}"
+            else:
+                prev_context = ""
+
+        merged_data['sections'] = all_sections
+        logger.info(
+            "Chunked processing complete: total_sections=%d from %d chunks",
+            len(all_sections), len(chunks)
+        )
+        return merged_data
+
+    async def convert_to_article_json(self, markdown_content: str, translate_to_chinese: bool = True) -> ArticleData:
+        """Convert markdown content to structured ArticleData JSON."""
+        content_length = len(markdown_content)
+        logger.info(f"Starting LLM conversion, translate_to_chinese={translate_to_chinese}, content_length={content_length}")
+
+        # 判断处理模式：分块 > 双模型 > 单模型
+        use_chunked = (
+            self.chunk_threshold > 0
+            and content_length > self.chunk_threshold
+        )
+        use_dual = (
+            self.dual_model_enabled
+            and (self.dual_model_threshold == 0 or content_length > self.dual_model_threshold)
+        )
+
+        if use_chunked:
+            logger.info(
+                "Using chunked mode: content_length=%d > threshold=%d, chunk_size=%d",
+                content_length, self.chunk_threshold, self.chunk_size
+            )
+            data = await self._convert_chunked(markdown_content, translate_to_chinese)
+        elif use_dual:
             logger.info(
                 "Using dual-model mode: analyst=%s, formatter=%s, content_length=%d",
-                self.model, self.formatter_model, len(markdown_content)
+                self.model, self.formatter_model, content_length
             )
             data = await self._convert_dual_model(markdown_content, translate_to_chinese)
         else:
             # 单模型一步到位（SYSTEM_PROMPT + USER_PROMPT_TEMPLATE）
-            logger.info("Using single-model mode: %s, content_length=%d", self.model, len(markdown_content))
+            logger.info("Using single-model mode: %s, content_length=%d", self.model, content_length)
             language_instruction = TRANSLATE_INSTRUCTION if translate_to_chinese else KEEP_ORIGINAL_INSTRUCTION
             user_prompt = USER_PROMPT_TEMPLATE.format(
                 language_instruction=language_instruction,
@@ -1450,7 +1660,7 @@ class LLMService:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt}
             ]
-            data = await self._call_llm_and_parse_json(messages, len(markdown_content))
+            data = await self._call_llm_and_parse_json(messages, content_length)
 
         logger.info(f"JSON parsed successfully, sections count: {len(data.get('sections', []))}")
 
@@ -1478,6 +1688,7 @@ class LLMService:
             "timeout": "页面加载超时，请稍后重试或检查网址是否正确",
             "LLM request timed out": "AI 处理超时，请稍后重试",
             "Dual-model processing timed out": "AI 双模型处理超时，请稍后重试",
+            "Chunked processing": "AI 分块处理出错，请稍后重试",
             "maximum context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
             "context length": "内容过长，超出模型可处理范围，请缩短文本后重试",
             "Request too large": "内容过长，超出模型可处理范围，请缩短文本后重试",
