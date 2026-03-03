@@ -795,6 +795,18 @@ _VALID_LITERAL_VALUES = {
 }
 
 
+def _strip_markdown(text: str) -> str:
+    """去除文本中的 markdown 格式标记（**粗体**、*斜体*、`代码`）。"""
+    # **粗体** 或 __粗体__
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'__(.+?)__', r'\1', text)
+    # *斜体* 或 _斜体_（但不影响已处理的下划线）
+    text = re.sub(r'(?<!\w)\*(.+?)\*(?!\w)', r'\1', text)
+    # `代码`
+    text = re.sub(r'`(.+?)`', r'\1', text)
+    return text.strip()
+
+
 def _sanitize_literal_fields(block: dict) -> dict:
     """清理 block 中所有 Literal 字段的无效值，避免 Pydantic 验证失败。"""
     for field, valid_values in _VALID_LITERAL_VALUES.items():
@@ -814,7 +826,7 @@ def normalize_blocks(data: dict) -> dict:
 
     normalized_sections = []
     for section in data["sections"]:
-        title = str(section.get("title", "")).strip() or "未命名章节"
+        title = _strip_markdown(str(section.get("title", "")).strip()) or "未命名章节"
         content = section.get("content") or []
         if not isinstance(content, list):
             content = [content]
@@ -834,7 +846,7 @@ def normalize_blocks(data: dict) -> dict:
             normalized_block = _sanitize_literal_fields(normalized_block)
 
             if block_type == "paragraph":
-                text = str(normalized_block.get("text", "")).strip()
+                text = _strip_markdown(str(normalized_block.get("text", "")).strip())
                 if not text:
                     continue
                 normalized_block["text"] = text
@@ -842,7 +854,7 @@ def normalize_blocks(data: dict) -> dict:
                 items = normalized_block.get("items") or []
                 if not isinstance(items, list):
                     items = [items]
-                normalized_items = [str(item).strip() for item in items if str(item).strip()]
+                normalized_items = [_strip_markdown(str(item).strip()) for item in items if str(item).strip()]
                 if not normalized_items:
                     continue
                 normalized_block["items"] = normalized_items
@@ -860,13 +872,13 @@ def normalize_blocks(data: dict) -> dict:
                 if author is not None:
                     normalized_block["author"] = str(author).strip()
             elif block_type == "callout":
-                text = str(normalized_block.get("text", "")).strip()
+                text = _strip_markdown(str(normalized_block.get("text", "")).strip())
                 if not text:
                     continue
                 normalized_block["text"] = text
                 title_value = normalized_block.get("title")
                 if title_value is not None:
-                    normalized_block["title"] = str(title_value).strip()
+                    normalized_block["title"] = _strip_markdown(str(title_value).strip())
             elif block_type == "grid":
                 items = normalized_block.get("items") or []
                 if not isinstance(items, list):
@@ -874,8 +886,8 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for item in items:
                     if isinstance(item, dict):
-                        title_value = str(item.get("title", "")).strip()
-                        description_value = str(item.get("description", "")).strip()
+                        title_value = _strip_markdown(str(item.get("title", "")).strip())
+                        description_value = _strip_markdown(str(item.get("description", "")).strip())
                         if title_value and description_value:
                             normalized_items.append({"title": title_value, "description": description_value})
                 if not normalized_items:
@@ -901,8 +913,8 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for item in items:
                     if isinstance(item, dict):
-                        label = str(item.get("label", "")).strip()
-                        value = str(item.get("value", "")).strip()
+                        label = _strip_markdown(str(item.get("label", "")).strip())
+                        value = _strip_markdown(str(item.get("value", "")).strip())
                         if label and value:
                             trend = item.get("trend")
                             if trend is not None and trend not in _VALID_LITERAL_VALUES.get("trend", set()):
@@ -935,12 +947,12 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for item in items:
                     if isinstance(item, dict):
-                        title_value = str(item.get("title", "")).strip()
+                        title_value = _strip_markdown(str(item.get("title", "")).strip())
                         if title_value:
                             normalized_items.append({
                                 "title": title_value,
-                                "time": str(item.get("time", "")).strip() if item.get("time") is not None else None,
-                                "desc": str(item.get("desc", "")).strip() if item.get("desc") is not None else None
+                                "time": _strip_markdown(str(item.get("time", "")).strip()) if item.get("time") is not None else None,
+                                "desc": _strip_markdown(str(item.get("desc", "")).strip()) if item.get("desc") is not None else None
                             })
                 if not normalized_items:
                     continue
@@ -1014,8 +1026,8 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for item in items:
                     if isinstance(item, dict):
-                        question = str(item.get("question", "")).strip()
-                        answer = str(item.get("answer", "")).strip()
+                        question = _strip_markdown(str(item.get("question", "")).strip())
+                        answer = _strip_markdown(str(item.get("answer", "")).strip())
                         if question and answer:
                             normalized_items.append({"question": question, "answer": answer})
                 if not normalized_items:
@@ -1028,8 +1040,8 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for index, item in enumerate(items, start=1):
                     if isinstance(item, dict):
-                        title_value = str(item.get("title", "")).strip()
-                        description_value = str(item.get("description", "")).strip()
+                        title_value = _strip_markdown(str(item.get("title", "")).strip())
+                        description_value = _strip_markdown(str(item.get("description", "")).strip())
                         if title_value and description_value:
                             step_value = item.get("step")
                             if not isinstance(step_value, int):
@@ -1049,7 +1061,7 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for item in items:
                     if isinstance(item, dict):
-                        label = str(item.get("label", "")).strip()
+                        label = _strip_markdown(str(item.get("label", "")).strip())
                         value = item.get("value")
                         max_value = item.get("max") if item.get("max") is not None else 100
                         if label and isinstance(value, (int, float)):
@@ -1062,7 +1074,7 @@ def normalize_blocks(data: dict) -> dict:
                     continue
                 normalized_block["items"] = normalized_items
             elif block_type == "highlight":
-                text = str(normalized_block.get("text", "")).strip()
+                text = _strip_markdown(str(normalized_block.get("text", "")).strip())
                 if not text:
                     continue
                 normalized_block["text"] = text
@@ -1073,8 +1085,8 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for item in items:
                     if isinstance(item, dict):
-                        term = str(item.get("term", "")).strip()
-                        definition = str(item.get("definition", "")).strip()
+                        term = _strip_markdown(str(item.get("term", "")).strip())
+                        definition = _strip_markdown(str(item.get("definition", "")).strip())
                         if term and definition:
                             normalized_items.append({"term": term, "definition": definition})
                 if not normalized_items:
@@ -1126,7 +1138,7 @@ def normalize_blocks(data: dict) -> dict:
                 normalized_items = []
                 for item in items:
                     if isinstance(item, dict):
-                        label = str(item.get("label", "")).strip()
+                        label = _strip_markdown(str(item.get("label", "")).strip())
                         score = item.get("score")
                         max_score = item.get("maxScore") if item.get("maxScore") is not None else 5
                         if label and isinstance(score, (int, float)):
