@@ -571,14 +571,14 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
           {safeRows.map((row, idx) => (
             <React.Fragment key={idx}>
               <div className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-normal break-words leading-relaxed">
-                {row.label}
+                {parseInlineMarkdown(row.label)}
               </div>
               {row.values.map((val, vIdx) => (
                 <div
                   key={vIdx}
                   className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center whitespace-normal break-words ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
                 >
-                  {val}
+                  {parseInlineMarkdown(val)}
                 </div>
               ))}
             </React.Fragment>
@@ -640,7 +640,7 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
             <tr className="bg-stone-50">
               {safeHeaders.map((h, idx) => (
                 <th key={idx} className="px-3 py-3 sm:px-6 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-stone-500 uppercase tracking-wider first:pl-4 sm:first:pl-8 whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
-                  {h}
+                  {parseInlineMarkdown(h)}
                 </th>
               ))}
             </tr>
@@ -650,7 +650,7 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
               <tr key={idx} className="bg-white hover:bg-stone-50/50 transition-colors">
                 {row.map((cell, cIdx) => (
                   <td key={cIdx} className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-700 leading-relaxed first:pl-4 sm:first:pl-8 first:font-medium min-w-[100px] sm:min-w-[120px]">
-                    {cell}
+                    {parseInlineMarkdown(cell)}
                   </td>
                 ))}
               </tr>
