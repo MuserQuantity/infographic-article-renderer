@@ -317,8 +317,8 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
     <div className={`grid ${gridCols[columns]} gap-4 sm:gap-6 mb-10 sm:mb-12`}>
       {items.map((item, idx) => (
         <div key={idx} className="bg-white p-5 sm:p-8 rounded-lg sm:rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-stone-200/40 group border border-stone-100 hover:border-stone-200 hover:-translate-y-1 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-300 opacity-80" />
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 text-amber-700 flex items-center justify-center mb-4 sm:mb-6 ring-1 ring-amber-100 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-amber-100/50 transition-all duration-300">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-stone-300 via-stone-400 to-stone-300 opacity-60" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-stone-100 to-stone-50 text-stone-600 flex items-center justify-center mb-4 sm:mb-6 ring-1 ring-stone-200 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-stone-200/50 transition-all duration-300">
              <LayoutGrid className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <h4 className="font-bold text-stone-800 mb-2 sm:mb-3 text-base sm:text-lg md:text-xl">
@@ -1169,8 +1169,8 @@ const stripTitleNumbering = (title: string): string => {
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
   <div className="mb-12 sm:mb-16 md:mb-20 last:mb-0 relative">
     <div className="flex items-baseline gap-3 sm:gap-4 md:gap-8 mb-8 sm:mb-12 md:mb-16 border-b border-stone-200 pb-4 sm:pb-6 relative">
-      <div className="absolute bottom-0 left-0 w-16 sm:w-20 h-0.5 bg-gradient-to-r from-amber-400 to-orange-300" />
-      <div className="text-2xl sm:text-3xl md:text-4xl font-serif font-black bg-gradient-to-br from-amber-300 to-amber-100 bg-clip-text text-transparent select-none leading-none">
+      <div className="absolute bottom-0 left-0 w-16 sm:w-20 h-0.5 bg-gradient-to-r from-stone-400 to-stone-300" />
+      <div className="text-2xl sm:text-3xl md:text-4xl font-serif font-black text-stone-300 select-none leading-none">
         {String(index + 1).padStart(2, '0')}
       </div>
       <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-stone-900 tracking-tight flex-1">
