@@ -67,7 +67,7 @@ function showConfirmDialog(options) {
         bodyHTML += `<div class="confirm-info"><strong>📑 分P:</strong> ${escapeHtml(meta.part)}</div>`;
       }
       if (meta.desc) {
-        const descPreview = meta.desc.length > 150 ? meta.desc.substring(0, 150) + '...' : meta.desc;
+        const descPreview = meta.desc.length > 300 ? meta.desc.substring(0, 300) + '...' : meta.desc;
         bodyHTML += `<div class="confirm-info"><strong>📝 简介:</strong> ${escapeHtml(descPreview)}</div>`;
       }
       if (Array.isArray(meta.tags) && meta.tags.length > 0) {
