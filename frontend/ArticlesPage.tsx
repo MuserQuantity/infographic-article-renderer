@@ -181,7 +181,7 @@ export default function ArticlesPage() {
   };
 
   return (
-    <div className="articles-theme min-h-screen bg-[var(--paper)] text-[color:var(--ink)] font-[var(--font-sans)] relative overflow-hidden">
+    <div className="articles-theme min-h-screen w-full max-w-full bg-[var(--paper)] text-[color:var(--ink)] font-[var(--font-sans)] relative overflow-hidden box-border">
       <div className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_center,_var(--accent)_0%,_transparent_70%)] opacity-20 blur-3xl"></div>
       <div className="pointer-events-none absolute top-16 right-[-10%] h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,_var(--accent-strong)_0%,_transparent_70%)] opacity-20 blur-3xl"></div>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,_rgba(255,255,255,0.7)_0%,_transparent_55%),radial-gradient(circle_at_80%_0%,_rgba(255,247,237,0.8)_0%,_transparent_45%)]"></div>

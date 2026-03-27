@@ -192,13 +192,16 @@ const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: st
 
   return (
     <div className="relative mb-8 sm:mb-12 mt-6 sm:mt-10">
-      <div className="border-l-2 border-amber-500 pl-4 sm:pl-8 py-2 pr-2 sm:pr-4">
-        <p className="text-lg sm:text-xl md:text-3xl font-serif text-stone-900 mb-4 sm:mb-6 leading-relaxed italic">
+      <div className="absolute -left-2 -top-4 sm:-left-4 sm:-top-6 text-6xl sm:text-8xl font-serif text-amber-200/60 leading-none select-none pointer-events-none">
+        &ldquo;
+      </div>
+      <div className="border-l-[3px] border-gradient-to-b border-amber-400 pl-4 sm:pl-8 py-3 pr-2 sm:pr-4 bg-gradient-to-r from-amber-50/40 to-transparent rounded-r-lg">
+        <p className="text-lg sm:text-xl md:text-2xl font-serif text-stone-800 mb-4 sm:mb-6 leading-relaxed italic">
           "{parseInlineMarkdown(cleanText, onAnalyzeLink)}"
         </p>
       {author && (
         <div className="flex items-center justify-end gap-3 sm:gap-4">
-          <div className="h-px w-8 sm:w-12 bg-stone-300"></div>
+          <div className="h-px w-8 sm:w-12 bg-gradient-to-r from-transparent to-stone-300"></div>
           <footer className="text-xs sm:text-sm font-bold text-stone-500 uppercase tracking-wider sm:tracking-widest">
             {author}
           </footer>
@@ -234,10 +237,12 @@ const CalloutBlock = ({
   };
 
   return (
-    <div className={`flex items-start gap-3 sm:gap-4 p-4 sm:p-6 rounded-lg sm:rounded-xl border ${styles[variant]} mb-6 sm:mb-8`}>
-      <Icon className={`w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0 mt-0.5 ${iconColors[variant]}`} />
+    <div className={`flex items-start gap-3 sm:gap-4 p-4 sm:p-6 rounded-lg sm:rounded-xl border ${styles[variant]} mb-6 sm:mb-8 shadow-sm`}>
+      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${variant === 'info' ? 'bg-sky-100' : variant === 'warning' ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+        <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${iconColors[variant]}`} />
+      </div>
       <div className="flex-1">
-        {title && <h4 className="font-bold mb-1 text-sm sm:text-base md:text-lg">{title}</h4>}
+        {title && <h4 className="font-bold mb-1.5 text-sm sm:text-base md:text-lg">{title}</h4>}
         <p className="opacity-90 leading-relaxed text-xs sm:text-sm md:text-base">{parseInlineMarkdown(text, onAnalyzeLink)}</p>
       </div>
     </div>
@@ -311,8 +316,9 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
   return (
     <div className={`grid ${gridCols[columns]} gap-4 sm:gap-6 mb-10 sm:mb-12`}>
       {items.map((item, idx) => (
-        <div key={idx} className="bg-white p-5 sm:p-8 rounded-lg sm:rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-stone-200/40 group border border-stone-100 hover:border-stone-200 hover:-translate-y-1">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-white text-stone-800 flex items-center justify-center mb-4 sm:mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
+        <div key={idx} className="bg-white p-5 sm:p-8 rounded-lg sm:rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-stone-200/40 group border border-stone-100 hover:border-stone-200 hover:-translate-y-1 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-stone-300 via-stone-400 to-stone-300 opacity-60" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-stone-100 to-stone-50 text-stone-600 flex items-center justify-center mb-4 sm:mb-6 ring-1 ring-stone-200 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-stone-200/50 transition-all duration-300">
              <LayoutGrid className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <h4 className="font-bold text-stone-800 mb-2 sm:mb-3 text-base sm:text-lg md:text-xl">
@@ -399,7 +405,8 @@ const LegacyStatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?:
       {items.map((item, idx) => {
         const style = trendConfig(item.trend);
         return (
-          <div key={idx} className="p-6 bg-white rounded-xl border border-stone-200 hover:border-stone-300 transition-all hover:shadow-lg hover:-translate-y-1">
+          <div key={idx} className="p-6 bg-white rounded-xl border border-stone-200 hover:border-stone-300 transition-all hover:shadow-lg hover:-translate-y-1 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-stone-200 via-amber-400 to-stone-200" />
             <div className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-3">{item.label}</div>
             <div className="flex items-end gap-3 mb-4">
               <span className="text-3xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight leading-none">{item.value}</span>
@@ -444,11 +451,11 @@ const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2
 };
 
 const TagsBlock = ({ items }: { items: string[] }) => (
-  <div className="flex flex-wrap gap-2.5 mb-12 pt-4 border-t border-stone-100">
+  <div className="flex flex-wrap gap-2.5 mb-12 pt-6 border-t border-stone-100">
     {items.map((tag, idx) => (
       <span
         key={idx}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 text-xs font-medium hover:from-indigo-100 hover:to-purple-100 transition-all cursor-default border border-indigo-100/50"
+        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-stone-50 to-stone-100/80 text-stone-600 text-xs font-medium hover:from-amber-50 hover:to-orange-50 hover:text-amber-700 transition-all cursor-default border border-stone-200/60 hover:border-amber-200 shadow-sm hover:shadow-md hover:shadow-amber-100/30 hover:-translate-y-0.5"
       >
         <Tag className="w-3 h-3" />
         {tag}
@@ -459,14 +466,14 @@ const TagsBlock = ({ items }: { items: string[] }) => (
 
 const LegacyTimelineBlock = ({ items }: { items: { title: string; time?: string; desc?: string }[] }) => (
   <div className="relative pl-2 mb-12">
-    <div className="absolute left-[15px] top-2 bottom-2 w-px bg-stone-200" />
+    <div className="absolute left-[15px] top-2 bottom-2 w-px bg-gradient-to-b from-amber-300 via-stone-200 to-stone-100" />
     <div className="space-y-10">
       {items.map((item, idx) => (
         <div key={idx} className="relative pl-10 group">
-          <div className="absolute left-[11px] top-2 w-[9px] h-[9px] rounded-full bg-white border-2 border-stone-400 group-hover:border-stone-900 group-hover:scale-125 transition-all z-10" />
-          <div className="">
+          <div className="absolute left-[9px] top-1.5 w-[13px] h-[13px] rounded-full bg-gradient-to-br from-amber-400 to-orange-400 group-hover:scale-125 transition-all z-10 shadow-sm shadow-amber-200/50" />
+          <div>
              {item.time && (
-                <span className="text-xs font-bold text-stone-400 mb-1 block font-mono">
+                <span className="text-xs font-bold text-amber-600/80 mb-1 block font-mono">
                   {item.time}
                 </span>
               )}
@@ -557,28 +564,28 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
   const { columnCount, columns: safeColumns, rows: safeRows, labelHeader } = normalizeComparison(columns, rows);
 
   return (
-    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white">
+    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
         <div className="grid" style={{ gridTemplateColumns: `minmax(140px, 1.2fr) repeat(${columnCount}, minmax(140px, 1fr))`, minWidth: Math.max((columnCount + 1) * 140, 420) }}>
-          <div className="bg-stone-50 px-3 py-3 sm:px-6 sm:py-4 text-[10px] sm:text-xs font-bold uppercase text-stone-400 flex items-center whitespace-nowrap">
+          <div className="bg-stone-800 px-3 py-3 sm:px-6 sm:py-4 text-[10px] sm:text-xs font-bold uppercase text-stone-300 flex items-center whitespace-nowrap rounded-tl-lg sm:rounded-tl-xl">
             {labelHeader}
           </div>
           {safeColumns.map((col, idx) => (
-            <div key={idx} className={`bg-stone-50 px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-800 border-l border-stone-200 text-center ${idx === 0 ? 'bg-stone-100/50' : ''}`}>
+            <div key={idx} className={`bg-stone-800 px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-white border-l border-stone-700 text-center ${idx === safeColumns.length - 1 ? 'rounded-tr-lg sm:rounded-tr-xl' : ''}`}>
               {col}
             </div>
           ))}
           {safeRows.map((row, idx) => (
             <React.Fragment key={idx}>
               <div className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-normal break-words leading-relaxed">
-                {row.label}
+                {parseInlineMarkdown(row.label)}
               </div>
               {row.values.map((val, vIdx) => (
                 <div
                   key={vIdx}
                   className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center whitespace-normal break-words ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
                 >
-                  {val}
+                  {parseInlineMarkdown(val)}
                 </div>
               ))}
             </React.Fragment>
@@ -633,14 +640,14 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
   const { columnCount, headers: safeHeaders, rows: safeRows } = normalizeTable(headers, rows);
 
   return (
-    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white shadow-sm">
+    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full divide-y divide-stone-200" style={{ minWidth: Math.max(columnCount * 120, 400) }}>
           <thead>
-            <tr className="bg-stone-50">
+            <tr className="bg-stone-800">
               {safeHeaders.map((h, idx) => (
-                <th key={idx} className="px-3 py-3 sm:px-6 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-stone-500 uppercase tracking-wider first:pl-4 sm:first:pl-8 whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
-                  {h}
+                <th key={idx} className="px-3 py-3 sm:px-6 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-stone-300 uppercase tracking-wider first:pl-4 sm:first:pl-8 whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
+                  {parseInlineMarkdown(h)}
                 </th>
               ))}
             </tr>
@@ -650,7 +657,7 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
               <tr key={idx} className="bg-white hover:bg-stone-50/50 transition-colors">
                 {row.map((cell, cIdx) => (
                   <td key={cIdx} className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-700 leading-relaxed first:pl-4 sm:first:pl-8 first:font-medium min-w-[100px] sm:min-w-[120px]">
-                    {cell}
+                    {parseInlineMarkdown(cell)}
                   </td>
                 ))}
               </tr>
@@ -717,20 +724,20 @@ const AccordionBlock = ({ items }: { items: AccordionItem[] }) => {
   return (
     <div className="mb-12 space-y-3">
       {items.map((item, idx) => (
-        <div key={idx} className="border border-stone-200 rounded-xl overflow-hidden bg-white">
+        <div key={idx} className={`border rounded-xl overflow-hidden bg-white transition-all ${openIndex === idx ? 'border-amber-200 shadow-md shadow-amber-50' : 'border-stone-200 shadow-sm'}`}>
           <button
             onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
-            className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-stone-50 transition-colors"
+            className={`w-full flex items-center justify-between px-6 py-4 text-left transition-colors ${openIndex === idx ? 'bg-amber-50/50' : 'hover:bg-stone-50'}`}
           >
             <span className="font-bold text-stone-800 text-base md:text-lg pr-4">{item.question}</span>
             {openIndex === idx ? (
-              <ChevronUp className="w-5 h-5 text-stone-400 flex-shrink-0" />
+              <ChevronUp className="w-5 h-5 text-amber-500 flex-shrink-0" />
             ) : (
               <ChevronDown className="w-5 h-5 text-stone-400 flex-shrink-0" />
             )}
           </button>
           {openIndex === idx && (
-            <div className="px-6 pb-5 pt-1 border-t border-stone-100">
+            <div className="px-6 pb-5 pt-2 border-t border-amber-100 bg-white">
               <p className="text-stone-600 leading-relaxed text-sm md:text-base">{item.answer}</p>
             </div>
           )}
@@ -745,11 +752,11 @@ const LegacyStepsBlock = ({ items }: { items: StepItem[] }) => (
     {items.map((item, idx) => (
       <div key={idx} className="flex gap-5 group">
         <div className="flex flex-col items-center">
-          <div className="w-10 h-10 rounded-full bg-stone-900 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 group-hover:bg-amber-500 transition-colors">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-stone-800 to-stone-950 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 group-hover:from-amber-500 group-hover:to-orange-500 transition-all shadow-md shadow-stone-300/50 group-hover:shadow-amber-300/50">
             {item.step}
           </div>
           {idx < items.length - 1 && (
-            <div className="w-0.5 flex-1 bg-stone-200 mt-3 group-hover:bg-amber-200 transition-colors" />
+            <div className="w-0.5 flex-1 bg-gradient-to-b from-stone-300 to-stone-100 mt-3 group-hover:from-amber-300 group-hover:to-amber-100 transition-colors" />
           )}
         </div>
         <div className="pb-8 flex-1">
@@ -864,9 +871,9 @@ const HighlightBlock = ({
 const DefinitionBlock = ({ items, onAnalyzeLink }: { items: DefinitionItem[]; onAnalyzeLink?: (url: string) => void }) => (
   <div className="mb-12 space-y-4">
     {items.map((item, idx) => (
-      <div key={idx} className="bg-stone-50 rounded-xl p-6 border-l-4 border-stone-400">
+      <div key={idx} className="bg-gradient-to-r from-stone-50 to-white rounded-xl p-6 border-l-4 border-amber-400 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-center gap-2 mb-2">
-          <BookOpen className="w-4 h-4 text-stone-500" />
+          <BookOpen className="w-4 h-4 text-amber-600" />
           <dt className="font-bold text-stone-900 text-base md:text-lg">{parseInlineMarkdown(item.term, onAnalyzeLink)}</dt>
         </div>
         <dd className="text-stone-600 leading-relaxed text-sm md:text-base pl-6">{parseInlineMarkdown(item.definition, onAnalyzeLink)}</dd>
@@ -885,7 +892,7 @@ const LegacyProsConsBlock = ({
   onAnalyzeLink?: (url: string) => void;
 }) => (
   <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">
+    <div className="bg-gradient-to-br from-emerald-50 to-green-50/50 rounded-xl p-6 border border-emerald-100 shadow-sm">
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-200">
         <ThumbsUp className="w-5 h-5 text-emerald-600" />
         <h4 className="font-bold text-emerald-800 text-base md:text-lg">优点</h4>
@@ -899,7 +906,7 @@ const LegacyProsConsBlock = ({
         ))}
       </ul>
     </div>
-    <div className="bg-rose-50 rounded-xl p-6 border border-rose-100">
+    <div className="bg-gradient-to-br from-rose-50 to-pink-50/50 rounded-xl p-6 border border-rose-100 shadow-sm">
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-rose-200">
         <ThumbsDown className="w-5 h-5 text-rose-600" />
         <h4 className="font-bold text-rose-800 text-base md:text-lg">缺点</h4>
@@ -1161,8 +1168,9 @@ const stripTitleNumbering = (title: string): string => {
 
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
   <div className="mb-12 sm:mb-16 md:mb-20 last:mb-0 relative">
-    <div className="flex items-baseline gap-3 sm:gap-4 md:gap-8 mb-8 sm:mb-12 md:mb-16 border-b border-stone-200 pb-4 sm:pb-6">
-      <div className="text-2xl sm:text-3xl md:text-4xl font-serif font-black text-stone-200 select-none leading-none">
+    <div className="flex items-baseline gap-3 sm:gap-4 md:gap-8 mb-8 sm:mb-12 md:mb-16 border-b border-stone-200 pb-4 sm:pb-6 relative">
+      <div className="absolute bottom-0 left-0 w-16 sm:w-20 h-0.5 bg-gradient-to-r from-stone-400 to-stone-300" />
+      <div className="text-2xl sm:text-3xl md:text-4xl font-serif font-black text-stone-300 select-none leading-none">
         {String(index + 1).padStart(2, '0')}
       </div>
       <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-stone-900 tracking-tight flex-1">
@@ -1189,8 +1197,10 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
     <div className="max-w-4xl w-full mx-auto bg-white min-h-screen shadow-xl shadow-stone-900/5 overflow-hidden rounded-none md:rounded-3xl ring-1 ring-stone-900/5 transition-all box-border">
       {/* Header */}
       <header className="bg-stone-950 text-white px-4 py-10 sm:px-8 sm:py-16 md:px-20 md:py-20 relative overflow-hidden">
-        {/* Subtle noise texture or pattern could go here */}
+        {/* Decorative background elements */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
+        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-amber-500/[0.07] to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-stone-600/20 to-transparent rounded-full blur-2xl" />
 
         <div className="relative z-10 max-w-3xl mx-auto text-left">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs sm:text-sm font-medium text-stone-400 uppercase tracking-wider sm:tracking-widest mb-6 sm:mb-8">
@@ -1206,21 +1216,21 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
             )}
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-black mb-6 sm:mb-8 md:mb-10 leading-tight text-stone-50">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-black mb-6 sm:mb-8 md:mb-10 leading-tight text-stone-50 drop-shadow-sm">
             {data.title}
           </h1>
 
           {data.subtitle && (
-            <p className="text-base sm:text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-500 pl-3 sm:pl-4 md:pl-6 text-left">
+            <p className="text-base sm:text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-400 pl-3 sm:pl-4 md:pl-6 text-left">
               {data.subtitle}
             </p>
           )}
 
           {data.meta?.author && (
             <div className="mt-10 sm:mt-16 flex items-center gap-3 sm:gap-4">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-700 flex items-center justify-center text-stone-300">
-                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center text-amber-300 ring-1 ring-amber-400/30">
+                          <User className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </div>
               <div className="text-left">
                 <p className="text-[10px] sm:text-xs text-stone-400 uppercase tracking-wider sm:tracking-widest font-bold">Written by</p>
                 <p className="text-sm sm:text-base font-bold text-white">{data.meta.author}</p>
@@ -1237,6 +1247,11 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
         ))}
 
         <footer className="mt-20 sm:mt-32 pt-8 sm:pt-12 border-t border-stone-100 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="w-8 h-px bg-stone-200" />
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            <div className="w-8 h-px bg-stone-200" />
+          </div>
           <p className="text-stone-400 text-xs sm:text-sm font-medium flex items-center justify-center gap-2">
             <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
             Generated by Infographic Renderer • {new Date().getFullYear()}

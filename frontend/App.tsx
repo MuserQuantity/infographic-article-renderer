@@ -472,7 +472,7 @@ export default function App() {
   // 输入界面
   if (showInput && !loading) {
     return (
-      <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4 sm:p-6">
+      <div className="min-h-screen w-full max-w-full bg-stone-950 flex items-center justify-center p-4 sm:p-6 overflow-x-hidden box-border">
         <div className="w-full max-w-xl">
           {/* Logo/Title */}
           <div className="text-center mb-8 sm:mb-10">
@@ -709,7 +709,7 @@ export default function App() {
   // 加载状态
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-stone-950 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-stone-950 flex items-center justify-center z-50 overflow-hidden">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
           <p className="text-stone-400 text-lg mb-2">
@@ -746,7 +746,7 @@ export default function App() {
   // 错误状态
   if (error) {
     return (
-      <div className="min-h-screen bg-stone-950 flex items-center justify-center p-4">
+      <div className="min-h-screen w-full max-w-full bg-stone-950 flex items-center justify-center p-4 overflow-x-hidden box-border">
         <div className="bg-red-900/30 border border-red-800 rounded-2xl p-8 max-w-lg w-full text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-red-400 mb-2">处理失败</h2>
