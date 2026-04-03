@@ -576,7 +576,7 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
             {labelHeader}
           </div>
           {safeColumns.map((col, idx) => (
-            <div key={idx} className="bg-[#110f0b] px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-black text-white border-l border-[#2a2520] text-center">
+            <div key={idx} className="bg-[#110f0b] px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-black text-white border-l border-[#2a2520]">
               {col}
             </div>
           ))}
@@ -588,7 +588,7 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
               {row.values.map((val, vIdx) => (
                 <div
                   key={vIdx}
-                  className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-[#2d2820] border-t border-l border-[#e8e2d6] leading-relaxed text-center whitespace-normal break-words ${vIdx === 0 ? 'font-semibold text-[#110f0b]' : ''}`}
+                  className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-[#2d2820] border-t border-l border-[#e8e2d6] leading-relaxed text-left whitespace-normal break-words ${vIdx === 0 ? 'font-semibold text-[#110f0b]' : ''}`}
                 >
                   {parseInlineMarkdown(val)}
                 </div>
