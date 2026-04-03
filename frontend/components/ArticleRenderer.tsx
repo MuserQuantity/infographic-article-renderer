@@ -81,7 +81,7 @@ const parseInlineMarkdown = (
     const fullMatch = match[0];
     if (fullMatch.startsWith('**') && fullMatch.endsWith('**')) {
       result.push(
-        <strong key={keyIndex++} className="font-semibold text-inherit">
+        <strong key={keyIndex++} className="font-bold text-inherit">
           {fullMatch.slice(2, -2)}
         </strong>
       );
@@ -123,7 +123,6 @@ const SmartLink = ({ href, children, onAnalyze }: { href: string; children: Reac
     if (onAnalyze) {
       onAnalyze(href);
     } else {
-      // 默认行为：在当前页面导航到分析该 URL
       window.location.href = `/?url=${encodeURIComponent(href)}`;
     }
     setShowMenu(false);
@@ -145,28 +144,28 @@ const SmartLink = ({ href, children, onAnalyze }: { href: string; children: Reac
       <a
         href={href}
         onClick={(e) => e.preventDefault()}
-        className="text-amber-700 hover:text-amber-900 underline decoration-amber-300 hover:decoration-amber-500 underline-offset-2 transition-colors cursor-pointer"
+        className="text-[#bf3627] hover:text-[#8a2019] underline decoration-[#bf3627]/40 hover:decoration-[#bf3627] underline-offset-2 transition-colors cursor-pointer"
       >
         {children}
       </a>
       {showMenu && (
         <div
-          className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-xl border border-stone-200 py-1 min-w-[160px] animate-in fade-in slide-in-from-top-1 duration-150"
+          className="absolute left-0 top-full mt-1 z-50 bg-[#110f0b] rounded-none shadow-2xl border border-[#2a2520] py-1 min-w-[160px]"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
           <button
             onClick={handleOpen}
-            className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2 transition-colors"
+            className="w-full px-4 py-2.5 text-left text-xs text-[#c8c0b4] hover:bg-[#1e1a16] hover:text-white flex items-center gap-2 transition-colors font-mono uppercase tracking-wider"
           >
-            <ExternalLink className="w-4 h-4 text-stone-400" />
+            <ExternalLink className="w-3 h-3" />
             打开链接
           </button>
           <button
             onClick={handleAnalyze}
-            className="w-full px-4 py-2 text-left text-sm text-amber-700 hover:bg-amber-50 flex items-center gap-2 transition-colors"
+            className="w-full px-4 py-2.5 text-left text-xs text-[#bf3627] hover:bg-[#1e1a16] flex items-center gap-2 transition-colors font-mono uppercase tracking-wider"
           >
-            <Sparkles className="w-4 h-4 text-amber-500" />
+            <Sparkles className="w-3 h-3" />
             分析此文章
           </button>
         </div>
@@ -176,13 +175,12 @@ const SmartLink = ({ href, children, onAnalyze }: { href: string; children: Reac
 };
 
 const ParagraphBlock = ({ text, onAnalyzeLink }: { text: string; onAnalyzeLink?: (url: string) => void }) => (
-  <p className="text-stone-800 leading-7 sm:leading-8 md:leading-8 mb-6 sm:mb-8 text-sm sm:text-base md:text-lg tracking-normal text-left font-normal antialiased">
+  <p className="text-[#2d2820] leading-[1.85] mb-5 sm:mb-7 text-sm sm:text-base md:text-[1.05rem] tracking-[0.01em] text-left font-normal">
     {parseInlineMarkdown(text, onAnalyzeLink)}
   </p>
 );
 
 const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: string; onAnalyzeLink?: (url: string) => void }) => {
-  // 清理 markdown 引用语法 (> 开头的行)
   const safeText = typeof text === 'string' ? text : String(text ?? '');
   const cleanText = safeText
     .split('\n')
@@ -191,24 +189,21 @@ const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: st
     .trim();
 
   return (
-    <div className="relative mb-8 sm:mb-12 mt-6 sm:mt-10">
-      <div className="absolute -left-2 -top-4 sm:-left-4 sm:-top-6 text-6xl sm:text-8xl font-serif text-amber-200/60 leading-none select-none pointer-events-none">
-        &ldquo;
-      </div>
-      <div className="border-l-[3px] border-gradient-to-b border-amber-400 pl-4 sm:pl-8 py-3 pr-2 sm:pr-4 bg-gradient-to-r from-amber-50/40 to-transparent rounded-r-lg">
-        <p className="text-lg sm:text-xl md:text-2xl font-serif text-stone-800 mb-4 sm:mb-6 leading-relaxed italic">
-          "{parseInlineMarkdown(cleanText, onAnalyzeLink)}"
+    <div className="relative mb-10 sm:mb-14 mt-6 sm:mt-10">
+      <div className="border-t-2 border-b border-[#110f0b] pt-5 sm:pt-7 pb-6 sm:pb-8">
+        <p className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-[#110f0b] mb-5 sm:mb-7 leading-snug italic">
+          {parseInlineMarkdown(cleanText, onAnalyzeLink)}
         </p>
-      {author && (
-        <div className="flex items-center justify-end gap-3 sm:gap-4">
-          <div className="h-px w-8 sm:w-12 bg-gradient-to-r from-transparent to-stone-300"></div>
-          <footer className="text-xs sm:text-sm font-bold text-stone-500 uppercase tracking-wider sm:tracking-widest">
-            {author}
-          </footer>
-        </div>
-      )}
+        {author && (
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-[2px] bg-[#bf3627]" />
+            <footer className="text-[10px] sm:text-xs font-bold text-[#bf3627] uppercase tracking-[0.15em] font-mono">
+              {author}
+            </footer>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
   );
 };
 
@@ -223,27 +218,41 @@ const CalloutBlock = ({
   variant?: 'info' | 'warning' | 'success';
   onAnalyzeLink?: (url: string) => void;
 }) => {
-  const styles = {
-    info: 'bg-sky-50 border-sky-100 text-sky-900',
-    warning: 'bg-amber-50 border-amber-100 text-amber-900',
-    success: 'bg-emerald-50 border-emerald-100 text-emerald-900'
+  const bandColors = {
+    info: 'bg-[#1a3a5c]',
+    warning: 'bg-[#bf3627]',
+    success: 'bg-[#1e4d2b]',
   };
-
-  const Icon = variant === 'warning' ? AlertTriangle : Info;
-  const iconColors = {
-    info: 'text-sky-600',
-    warning: 'text-amber-600',
-    success: 'text-emerald-600'
+  const labels = {
+    info: 'INFO',
+    warning: 'WARN',
+    success: 'NOTE',
+  };
+  const borderColors = {
+    info: 'border-[#1a3a5c]',
+    warning: 'border-[#bf3627]',
+    success: 'border-[#1e4d2b]',
   };
 
   return (
-    <div className={`flex items-start gap-3 sm:gap-4 p-4 sm:p-6 rounded-lg sm:rounded-xl border ${styles[variant]} mb-6 sm:mb-8 shadow-sm`}>
-      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${variant === 'info' ? 'bg-sky-100' : variant === 'warning' ? 'bg-amber-100' : 'bg-emerald-100'}`}>
-        <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${iconColors[variant]}`} />
+    <div className={`flex mb-6 sm:mb-8 border-2 ${borderColors[variant]} overflow-hidden`}>
+      <div className={`w-9 sm:w-10 flex-shrink-0 flex items-center justify-center ${bandColors[variant]}`}>
+        <span
+          className="text-white text-[8px] font-black tracking-[0.12em] font-mono select-none"
+          style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+        >
+          {labels[variant]}
+        </span>
       </div>
-      <div className="flex-1">
-        {title && <h4 className="font-bold mb-1.5 text-sm sm:text-base md:text-lg">{title}</h4>}
-        <p className="opacity-90 leading-relaxed text-xs sm:text-sm md:text-base">{parseInlineMarkdown(text, onAnalyzeLink)}</p>
+      <div className="flex-1 px-4 sm:px-6 py-4 sm:py-5 bg-white">
+        {title && (
+          <h4 className="font-black text-[#110f0b] mb-1.5 text-xs sm:text-sm uppercase tracking-[0.08em]">
+            {title}
+          </h4>
+        )}
+        <p className="text-[#2d2820] leading-relaxed text-xs sm:text-sm md:text-base">
+          {parseInlineMarkdown(text, onAnalyzeLink)}
+        </p>
       </div>
     </div>
   );
@@ -253,7 +262,6 @@ const CalloutBlock = ({
 const extractItemText = (item: unknown): string => {
   if (typeof item === 'string') return item;
   if (item && typeof item === 'object') {
-    // 尝试常见的文本字段名
     const obj = item as Record<string, unknown>;
     if (typeof obj.text === 'string') return obj.text;
     if (typeof obj.content === 'string') return obj.content;
@@ -261,7 +269,6 @@ const extractItemText = (item: unknown): string => {
     if (typeof obj.value === 'string') return obj.value;
     if (typeof obj.label === 'string') return obj.label;
     if (typeof obj.name === 'string') return obj.name;
-    // 如果有 description，也尝试
     if (typeof obj.description === 'string') return obj.description;
   }
   return String(item ?? '');
@@ -278,27 +285,35 @@ const ListBlock = ({
   style?: 'bullet' | 'check' | 'number';
   onAnalyzeLink?: (url: string) => void;
 }) => (
-  <div className="mb-8 sm:mb-10 pl-1 sm:pl-2">
-    {title && <h4 className="font-bold text-stone-900 mb-4 sm:mb-6 text-sm sm:text-base md:text-lg flex items-center gap-2 border-b border-stone-100 pb-2">
-      {title}
-    </h4>}
-    <ul className="space-y-3 sm:space-y-4">
+  <div className="mb-8 sm:mb-10">
+    {title && (
+      <h4 className="font-black text-[#110f0b] mb-4 sm:mb-5 text-sm sm:text-base tracking-tight flex items-center gap-2 pb-2 border-b-2 border-[#110f0b]">
+        {title}
+      </h4>
+    )}
+    <ul className="space-y-2 sm:space-y-3">
       {items.map((item, idx) => {
         const safeItem = extractItemText(item);
         const content = parseInlineMarkdown(safeItem, onAnalyzeLink);
 
         return (
-          <li key={idx} className="flex gap-3 sm:gap-4 items-start group">
+          <li key={idx} className="flex gap-3 sm:gap-4 items-start group border-b border-[#e8e2d6] pb-2 sm:pb-3 last:border-0">
             <span className="flex-shrink-0 mt-1.5">
-              {style === 'check' && <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />}
-              {style === 'bullet' && <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-stone-400 mt-2" />}
+              {style === 'check' && (
+                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-[#1e4d2b] flex items-center justify-center flex-shrink-0">
+                  <div className="w-2 h-2 bg-[#1e4d2b]" />
+                </div>
+              )}
+              {style === 'bullet' && (
+                <div className="w-2 h-2 bg-[#bf3627] mt-[3px] flex-shrink-0" />
+              )}
               {style === 'number' && (
-                <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-stone-100 text-stone-600 text-[10px] sm:text-xs font-bold font-mono">
-                  {idx + 1}
+                <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-[#110f0b] text-white text-[9px] sm:text-[10px] font-black font-mono flex-shrink-0">
+                  {String(idx + 1).padStart(2, '0')}
                 </span>
               )}
             </span>
-            <span className="text-stone-700 text-sm sm:text-base md:text-lg leading-relaxed border-b border-stone-100 pb-3 sm:pb-4 w-full group-last:border-0">{content}</span>
+            <span className="text-[#2d2820] text-sm sm:text-base leading-relaxed">{content}</span>
           </li>
         );
       })}
@@ -314,17 +329,23 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
   };
 
   return (
-    <div className={`grid ${gridCols[columns]} gap-4 sm:gap-6 mb-10 sm:mb-12`}>
+    <div className={`grid ${gridCols[columns]} gap-px mb-10 sm:mb-12 bg-[#110f0b]`}>
       {items.map((item, idx) => (
-        <div key={idx} className="bg-white p-5 sm:p-8 rounded-lg sm:rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-stone-200/40 group border border-stone-100 hover:border-stone-200 hover:-translate-y-1 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-stone-300 via-stone-400 to-stone-300 opacity-60" />
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-stone-100 to-stone-50 text-stone-600 flex items-center justify-center mb-4 sm:mb-6 ring-1 ring-stone-200 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-stone-200/50 transition-all duration-300">
-             <LayoutGrid className="w-5 h-5 sm:w-6 sm:h-6" />
+        <div
+          key={idx}
+          className="bg-[#faf8f3] p-5 sm:p-7 relative group hover:bg-white transition-colors duration-200 overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#bf3627]" />
+          <div
+            className="text-[4rem] sm:text-[5rem] font-black leading-none text-[#110f0b]/[0.05] mb-3 select-none font-mono tracking-tighter"
+            style={{ fontFamily: "'Bebas Neue', 'DM Mono', monospace" }}
+          >
+            {String(idx + 1).padStart(2, '0')}
           </div>
-          <h4 className="font-bold text-stone-800 mb-2 sm:mb-3 text-base sm:text-lg md:text-xl">
+          <h4 className="font-black text-[#110f0b] mb-2 sm:mb-3 text-base sm:text-lg tracking-tight leading-tight">
             {item.title}
           </h4>
-          <p className="text-stone-600 leading-relaxed text-xs sm:text-sm md:text-base">{item.description}</p>
+          <p className="text-[#7a7069] leading-relaxed text-xs sm:text-sm">{item.description}</p>
         </div>
       ))}
     </div>
@@ -357,9 +378,9 @@ const ImageBlock = ({ src, alt, caption }: { src: string; alt: string; caption?:
   };
 
   return (
-    <figure className="mb-14 group">
+    <figure className="mb-12 group">
       <div
-        className="overflow-hidden rounded-xl bg-stone-100 shadow-lg relative"
+        className="overflow-hidden bg-[#1a1612] relative border-2 border-[#110f0b]"
         style={{ aspectRatio: aspect }}
       >
         <img
@@ -370,11 +391,9 @@ const ImageBlock = ({ src, alt, caption }: { src: string; alt: string; caption?:
         />
       </div>
       {caption && (
-        <figcaption className="mt-4 text-center">
-           <span className="inline-flex items-center gap-2 text-sm text-stone-500 font-medium px-4 py-1 rounded-full bg-stone-50">
-            <ImageIcon className="w-3.5 h-3.5" />
-            {caption}
-           </span>
+        <figcaption className="mt-3 flex items-center gap-2 text-xs text-[#7a7069] font-mono">
+          <div className="w-4 h-px bg-[#bf3627]" />
+          {caption}
         </figcaption>
       )}
     </figure>
@@ -384,45 +403,48 @@ const ImageBlock = ({ src, alt, caption }: { src: string; alt: string; caption?:
 const LegacyStatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2 | 3 }) => {
   const gridCols = {
     1: 'grid-cols-1',
-    2: 'grid-cols-1 md:grid-cols-2',
-    3: 'grid-cols-1 md:grid-cols-3',
-  };
-
-  const trendIcon = (trend?: StatItem['trend']) => {
-    if (trend === 'up') return <TrendingUp className="w-3.5 h-3.5" />;
-    if (trend === 'down') return <TrendingDown className="w-3.5 h-3.5" />;
-    return <div className="w-3.5 h-0.5 bg-current rounded-full" />;
-  };
-
-  const trendConfig = (trend?: StatItem['trend']) => {
-    if (trend === 'up') return { color: 'text-emerald-700', bg: 'bg-emerald-50' };
-    if (trend === 'down') return { color: 'text-rose-700', bg: 'bg-rose-50' };
-    return { color: 'text-stone-500', bg: 'bg-stone-100' };
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-3',
   };
 
   return (
-    <div className={`grid ${gridCols[columns]} gap-4 mb-12`}>
-      {items.map((item, idx) => {
-        const style = trendConfig(item.trend);
-        return (
-          <div key={idx} className="p-6 bg-white rounded-xl border border-stone-200 hover:border-stone-300 transition-all hover:shadow-lg hover:-translate-y-1 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-stone-200 via-amber-400 to-stone-200" />
-            <div className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-3">{item.label}</div>
-            <div className="flex items-end gap-3 mb-4">
-              <span className="text-3xl md:text-4xl font-serif font-bold text-stone-900 tracking-tight leading-none">{item.value}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold min-w-[60px] justify-center ${style.bg} ${style.color}`}>
-                {trendIcon(item.trend)}
-                {item.trend === 'up' && '增长'}
-                {item.trend === 'down' && '下降'}
-                {item.trend === 'flat' && '持平'}
-              </div>
-              {item.note && <span className="text-xs text-stone-400">{item.note}</span>}
-            </div>
+    <div className={`grid ${gridCols[columns]} mb-10 sm:mb-12 border-t-2 border-[#110f0b]`}>
+      {items.map((item, idx) => (
+        <div
+          key={idx}
+          className="py-6 sm:py-8 px-4 sm:px-6 border-b-2 sm:border-b-0 sm:border-r-2 border-[#e8e2d6] last:border-0"
+        >
+          <div
+            className="text-[10px] font-black text-[#7a7069] uppercase tracking-[0.15em] mb-3 font-mono"
+          >
+            {item.label}
           </div>
-        );
-      })}
+          <div
+            className="text-5xl sm:text-6xl md:text-7xl font-black text-[#110f0b] leading-none tracking-tighter mb-3"
+            style={{ fontFamily: "'Bebas Neue', 'DM Mono', monospace" }}
+          >
+            {item.value}
+          </div>
+          <div className="flex items-center gap-2 text-xs font-bold font-mono">
+            {item.trend === 'up' && (
+              <span className="flex items-center gap-1 text-[#1e4d2b]">
+                <TrendingUp className="w-3 h-3" /> 增长
+              </span>
+            )}
+            {item.trend === 'down' && (
+              <span className="flex items-center gap-1 text-[#bf3627]">
+                <TrendingDown className="w-3 h-3" /> 下降
+              </span>
+            )}
+            {item.trend === 'flat' && (
+              <span className="text-[#7a7069]">— 持平</span>
+            )}
+            {item.note && (
+              <span className="text-[#7a7069] font-normal">· {item.note}</span>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
@@ -451,13 +473,13 @@ const StatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2
 };
 
 const TagsBlock = ({ items }: { items: string[] }) => (
-  <div className="flex flex-wrap gap-2.5 mb-12 pt-6 border-t border-stone-100">
+  <div className="flex flex-wrap gap-2 mb-10 pt-5 border-t-2 border-[#110f0b]">
     {items.map((tag, idx) => (
       <span
         key={idx}
-        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-stone-50 to-stone-100/80 text-stone-600 text-xs font-medium hover:from-amber-50 hover:to-orange-50 hover:text-amber-700 transition-all cursor-default border border-stone-200/60 hover:border-amber-200 shadow-sm hover:shadow-md hover:shadow-amber-100/30 hover:-translate-y-0.5"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[#110f0b] text-[10px] sm:text-xs font-bold font-mono uppercase tracking-wider border border-[#110f0b] hover:bg-[#bf3627] hover:text-white hover:border-[#bf3627] transition-all cursor-default"
       >
-        <Tag className="w-3 h-3" />
+        <Tag className="w-2.5 h-2.5" />
         {tag}
       </span>
     ))}
@@ -465,20 +487,22 @@ const TagsBlock = ({ items }: { items: string[] }) => (
 );
 
 const LegacyTimelineBlock = ({ items }: { items: { title: string; time?: string; desc?: string }[] }) => (
-  <div className="relative pl-2 mb-12">
-    <div className="absolute left-[15px] top-2 bottom-2 w-px bg-gradient-to-b from-amber-300 via-stone-200 to-stone-100" />
-    <div className="space-y-10">
+  <div className="relative mb-12">
+    <div className="absolute left-[11px] top-2 bottom-2 w-px bg-[#e8e2d6]" />
+    <div className="space-y-8 sm:space-y-10">
       {items.map((item, idx) => (
-        <div key={idx} className="relative pl-10 group">
-          <div className="absolute left-[9px] top-1.5 w-[13px] h-[13px] rounded-full bg-gradient-to-br from-amber-400 to-orange-400 group-hover:scale-125 transition-all z-10 shadow-sm shadow-amber-200/50" />
+        <div key={idx} className="relative pl-9 sm:pl-10 group">
+          <div className="absolute left-[5px] top-1.5 w-[13px] h-[13px] bg-[#bf3627] group-hover:scale-125 transition-all z-10" />
           <div>
-             {item.time && (
-                <span className="text-xs font-bold text-amber-600/80 mb-1 block font-mono">
-                  {item.time}
-                </span>
-              )}
-              <h4 className="font-bold text-stone-800 text-base md:text-lg mb-2">{item.title}</h4>
-            {item.desc && <p className="text-stone-600 leading-relaxed text-xs md:text-sm max-w-xl">{item.desc}</p>}
+            {item.time && (
+              <span className="text-[10px] font-black text-[#bf3627] mb-1 block font-mono uppercase tracking-[0.12em]">
+                {item.time}
+              </span>
+            )}
+            <h4 className="font-black text-[#110f0b] text-base md:text-lg mb-1.5 tracking-tight">{item.title}</h4>
+            {item.desc && (
+              <p className="text-[#7a7069] leading-relaxed text-xs sm:text-sm max-w-xl">{item.desc}</p>
+            )}
           </div>
         </div>
       ))}
@@ -510,24 +534,9 @@ const TimelineBlock = ({ items }: { items: { title: string; time?: string; desc?
 };
 
 const comparisonLabelHeaders = new Set([
-  '指标',
-  '对比项',
-  '对比维度',
-  '维度',
-  '项目',
-  '参数',
-  'metric',
-  'metrics',
-  'feature',
-  'features',
-  'criteria',
-  'criterion',
-  'item',
-  'items',
-  'parameter',
-  'parameters',
-  'dimension',
-  'dimensions',
+  '指标', '对比项', '对比维度', '维度', '项目', '参数',
+  'metric', 'metrics', 'feature', 'features', 'criteria', 'criterion',
+  'item', 'items', 'parameter', 'parameters', 'dimension', 'dimensions',
 ]);
 
 const normalizeComparison = (columns: string[], rows: ComparisonRow[]) => {
@@ -547,14 +556,10 @@ const normalizeComparison = (columns: string[], rows: ComparisonRow[]) => {
 
   const columnCount = Math.max(effectiveColumns.length, maxValues);
   const normalizedColumns = effectiveColumns.slice(0, columnCount);
-  while (normalizedColumns.length < columnCount) {
-    normalizedColumns.push('');
-  }
+  while (normalizedColumns.length < columnCount) normalizedColumns.push('');
   const normalizedRows = rows.map((row) => {
     const values = row.values.slice(0, columnCount);
-    while (values.length < columnCount) {
-      values.push('');
-    }
+    while (values.length < columnCount) values.push('');
     return { ...row, values };
   });
   return { columnCount, columns: normalizedColumns, rows: normalizedRows, labelHeader };
@@ -564,26 +569,26 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
   const { columnCount, columns: safeColumns, rows: safeRows, labelHeader } = normalizeComparison(columns, rows);
 
   return (
-    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white shadow-sm">
+    <div className="mb-10 sm:mb-14 border-2 border-[#110f0b] bg-white overflow-hidden">
       <div className="overflow-x-auto">
         <div className="grid" style={{ gridTemplateColumns: `minmax(140px, 1.2fr) repeat(${columnCount}, minmax(140px, 1fr))`, minWidth: Math.max((columnCount + 1) * 140, 420) }}>
-          <div className="bg-stone-800 px-3 py-3 sm:px-6 sm:py-4 text-[10px] sm:text-xs font-bold uppercase text-stone-300 flex items-center whitespace-nowrap rounded-tl-lg sm:rounded-tl-xl">
+          <div className="bg-[#110f0b] px-3 py-3 sm:px-6 sm:py-4 text-[10px] font-black uppercase text-[#7a7069] tracking-[0.12em] font-mono flex items-center whitespace-nowrap">
             {labelHeader}
           </div>
           {safeColumns.map((col, idx) => (
-            <div key={idx} className={`bg-stone-800 px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-white border-l border-stone-700 text-center ${idx === safeColumns.length - 1 ? 'rounded-tr-lg sm:rounded-tr-xl' : ''}`}>
+            <div key={idx} className="bg-[#110f0b] px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-black text-white border-l border-[#2a2520] text-center">
               {col}
             </div>
           ))}
           {safeRows.map((row, idx) => (
             <React.Fragment key={idx}>
-              <div className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-stone-700 border-t border-stone-100 bg-white whitespace-normal break-words leading-relaxed">
+              <div className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-[#110f0b] border-t border-[#e8e2d6] bg-[#faf8f3] whitespace-normal break-words leading-relaxed">
                 {parseInlineMarkdown(row.label)}
               </div>
               {row.values.map((val, vIdx) => (
                 <div
                   key={vIdx}
-                  className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-600 border-t border-l border-stone-100 leading-relaxed text-center whitespace-normal break-words ${vIdx === 0 ? 'bg-stone-50/30 font-medium text-stone-900' : ''}`}
+                  className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-[#2d2820] border-t border-l border-[#e8e2d6] leading-relaxed text-center whitespace-normal break-words ${vIdx === 0 ? 'font-semibold text-[#110f0b]' : ''}`}
                 >
                   {parseInlineMarkdown(val)}
                 </div>
@@ -623,14 +628,10 @@ const normalizeTable = (headers: string[], rows: string[][]) => {
   const maxCells = rows.reduce((max, row) => Math.max(max, row.length), 0);
   const columnCount = Math.max(headers.length, maxCells);
   const normalizedHeaders = headers.slice(0, columnCount);
-  while (normalizedHeaders.length < columnCount) {
-    normalizedHeaders.push('');
-  }
+  while (normalizedHeaders.length < columnCount) normalizedHeaders.push('');
   const normalizedRows = rows.map((row) => {
     const cells = row.slice(0, columnCount);
-    while (cells.length < columnCount) {
-      cells.push('');
-    }
+    while (cells.length < columnCount) cells.push('');
     return cells;
   });
   return { columnCount, headers: normalizedHeaders, rows: normalizedRows };
@@ -640,23 +641,23 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
   const { columnCount, headers: safeHeaders, rows: safeRows } = normalizeTable(headers, rows);
 
   return (
-    <div className="mb-10 sm:mb-14 rounded-lg sm:rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+    <div className="mb-10 sm:mb-14 border-2 border-[#110f0b] bg-white overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-stone-200" style={{ minWidth: Math.max(columnCount * 120, 400) }}>
+        <table className="w-full divide-y-2 divide-[#110f0b]" style={{ minWidth: Math.max(columnCount * 120, 400) }}>
           <thead>
-            <tr className="bg-stone-800">
+            <tr className="bg-[#110f0b]">
               {safeHeaders.map((h, idx) => (
-                <th key={idx} className="px-3 py-3 sm:px-6 sm:py-4 text-left text-[10px] sm:text-xs font-bold text-stone-300 uppercase tracking-wider first:pl-4 sm:first:pl-8 whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
+                <th key={idx} className="px-3 py-3 sm:px-5 sm:py-4 text-left text-[10px] font-black text-[#7a7069] uppercase tracking-[0.12em] font-mono first:pl-4 sm:first:pl-6 whitespace-nowrap">
                   {parseInlineMarkdown(h)}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-stone-100">
+          <tbody className="divide-y divide-[#e8e2d6]">
             {safeRows.map((row, idx) => (
-              <tr key={idx} className="bg-white hover:bg-stone-50/50 transition-colors">
+              <tr key={idx} className={`transition-colors hover:bg-[#faf8f3] ${idx % 2 === 1 ? 'bg-[#faf8f3]/50' : 'bg-white'}`}>
                 {row.map((cell, cIdx) => (
-                  <td key={cIdx} className="px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-stone-700 leading-relaxed first:pl-4 sm:first:pl-8 first:font-medium min-w-[100px] sm:min-w-[120px]">
+                  <td key={cIdx} className="px-3 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-[#2d2820] leading-relaxed first:pl-4 sm:first:pl-6 first:font-semibold first:text-[#110f0b]">
                     {parseInlineMarkdown(cell)}
                   </td>
                 ))}
@@ -679,36 +680,36 @@ const CodeBlock = ({ code, language, title }: { code: string; language?: string;
   };
 
   return (
-    <div className="mb-8 sm:mb-10 rounded-lg sm:rounded-xl overflow-hidden border border-stone-200 bg-stone-900 shadow-lg">
-      <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 bg-stone-800 border-b border-stone-700">
+    <div className="mb-8 sm:mb-10 border-2 border-[#110f0b] overflow-hidden bg-[#1a1612]">
+      <div className="flex items-center justify-between px-3 py-2.5 sm:px-5 sm:py-3 bg-[#110f0b] border-b border-[#2a2520]">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          <Code className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400 flex-shrink-0" />
-          {title && <span className="text-xs sm:text-sm font-medium text-stone-300 truncate">{title}</span>}
+          <Code className="w-3.5 h-3.5 text-[#7a7069] flex-shrink-0" />
+          {title && <span className="text-xs font-mono text-[#c8c0b4] truncate">{title}</span>}
           {language && (
-            <span className="px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs font-mono bg-stone-700 text-stone-300 flex-shrink-0">
+            <span className="px-2 py-0.5 text-[9px] sm:text-[10px] font-black font-mono bg-[#bf3627]/20 text-[#bf3627] uppercase tracking-wider flex-shrink-0">
               {language}
             </span>
           )}
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded text-[10px] sm:text-xs font-medium text-stone-400 hover:text-stone-200 hover:bg-stone-700 transition-colors flex-shrink-0"
+          className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 text-[10px] sm:text-xs font-mono font-bold text-[#7a7069] hover:text-white hover:bg-[#2a2520] transition-colors flex-shrink-0 uppercase tracking-wider"
         >
           {copied ? (
             <>
-              <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
-              <span className="hidden xs:inline text-emerald-400">已复制</span>
+              <Check className="w-3 h-3 text-[#1e4d2b]" />
+              <span className="hidden xs:inline text-[#1e4d2b]">已复制</span>
             </>
           ) : (
             <>
-              <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <Copy className="w-3 h-3" />
               <span className="hidden xs:inline">复制</span>
             </>
           )}
         </button>
       </div>
-      <div className="p-3 sm:p-4 overflow-x-auto">
-        <pre className="text-xs sm:text-sm font-mono text-stone-100 leading-relaxed whitespace-pre-wrap break-words">
+      <div className="p-3 sm:p-5 overflow-x-auto">
+        <pre className="text-xs sm:text-sm font-mono text-[#d4cec2] leading-relaxed whitespace-pre-wrap break-words">
           <code>{code}</code>
         </pre>
       </div>
@@ -716,29 +717,27 @@ const CodeBlock = ({ code, language, title }: { code: string; language?: string;
   );
 };
 
-// --- New Block Components ---
-
 const AccordionBlock = ({ items }: { items: AccordionItem[] }) => {
   const [openIndex, setOpenIndex] = React.useState<number | null>(0);
 
   return (
-    <div className="mb-12 space-y-3">
+    <div className="mb-12 border-t-2 border-[#110f0b]">
       {items.map((item, idx) => (
-        <div key={idx} className={`border rounded-xl overflow-hidden bg-white transition-all ${openIndex === idx ? 'border-amber-200 shadow-md shadow-amber-50' : 'border-stone-200 shadow-sm'}`}>
+        <div key={idx} className={`border-b-2 ${openIndex === idx ? 'border-[#bf3627]' : 'border-[#e8e2d6]'}`}>
           <button
             onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
-            className={`w-full flex items-center justify-between px-6 py-4 text-left transition-colors ${openIndex === idx ? 'bg-amber-50/50' : 'hover:bg-stone-50'}`}
+            className={`w-full flex items-center justify-between px-4 sm:px-6 py-4 text-left transition-colors ${openIndex === idx ? 'bg-[#fdf6f5]' : 'hover:bg-[#faf8f3]'}`}
           >
-            <span className="font-bold text-stone-800 text-base md:text-lg pr-4">{item.question}</span>
+            <span className="font-bold text-[#110f0b] text-sm sm:text-base tracking-tight pr-4">{item.question}</span>
             {openIndex === idx ? (
-              <ChevronUp className="w-5 h-5 text-amber-500 flex-shrink-0" />
+              <ChevronUp className="w-4 h-4 text-[#bf3627] flex-shrink-0" />
             ) : (
-              <ChevronDown className="w-5 h-5 text-stone-400 flex-shrink-0" />
+              <ChevronDown className="w-4 h-4 text-[#7a7069] flex-shrink-0" />
             )}
           </button>
           {openIndex === idx && (
-            <div className="px-6 pb-5 pt-2 border-t border-amber-100 bg-white">
-              <p className="text-stone-600 leading-relaxed text-sm md:text-base">{item.answer}</p>
+            <div className="px-4 sm:px-6 pb-5 pt-3 bg-white border-t border-[#e8e2d6]">
+              <p className="text-[#2d2820] leading-relaxed text-xs sm:text-sm md:text-base">{item.answer}</p>
             </div>
           )}
         </div>
@@ -752,16 +751,18 @@ const LegacyStepsBlock = ({ items }: { items: StepItem[] }) => (
     {items.map((item, idx) => (
       <div key={idx} className="flex gap-5 group">
         <div className="flex flex-col items-center">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-stone-800 to-stone-950 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 group-hover:from-amber-500 group-hover:to-orange-500 transition-all shadow-md shadow-stone-300/50 group-hover:shadow-amber-300/50">
-            {item.step}
+          <div
+            className="w-9 h-9 sm:w-10 sm:h-10 bg-[#110f0b] group-hover:bg-[#bf3627] text-white flex items-center justify-center font-black text-xs sm:text-sm flex-shrink-0 transition-colors duration-200 font-mono"
+          >
+            {String(item.step).padStart(2, '0')}
           </div>
           {idx < items.length - 1 && (
-            <div className="w-0.5 flex-1 bg-gradient-to-b from-stone-300 to-stone-100 mt-3 group-hover:from-amber-300 group-hover:to-amber-100 transition-colors" />
+            <div className="w-px flex-1 border-l-2 border-dashed border-[#e8e2d6] mt-2 group-hover:border-[#bf3627]/30 transition-colors" />
           )}
         </div>
-        <div className="pb-8 flex-1">
-          <h4 className="font-bold text-stone-800 text-base md:text-lg mb-2">{item.title}</h4>
-          <p className="text-stone-600 leading-relaxed text-sm md:text-base">{item.description}</p>
+        <div className="pb-6 sm:pb-8 flex-1">
+          <h4 className="font-black text-[#110f0b] text-base md:text-lg mb-1.5 tracking-tight">{item.title}</h4>
+          <p className="text-[#7a7069] leading-relaxed text-xs sm:text-sm md:text-base">{item.description}</p>
         </div>
       </div>
     ))}
@@ -792,19 +793,19 @@ const StepsBlock = ({ items }: { items: StepItem[] }) => {
 };
 
 const LegacyProgressBlock = ({ items }: { items: ProgressItem[] }) => (
-  <div className="mb-12 space-y-5">
+  <div className="mb-12 space-y-4">
     {items.map((item, idx) => {
       const max = item.max || 100;
       const percentage = Math.min((item.value / max) * 100, 100);
       return (
-        <div key={idx} className="bg-white p-5 rounded-xl border border-stone-200">
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-bold text-stone-700 text-sm md:text-base">{item.label}</span>
-            <span className="text-sm font-mono font-bold text-stone-500">{item.value}/{max}</span>
+        <div key={idx} className="border-b border-[#e8e2d6] pb-4 last:border-0">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-bold text-[#110f0b] text-xs sm:text-sm uppercase tracking-wider font-mono">{item.label}</span>
+            <span className="text-xs font-black font-mono text-[#7a7069]">{item.value}/{max}</span>
           </div>
-          <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-[#e8e2d6] overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
+              className="h-full bg-[#bf3627] transition-all duration-500"
               style={{ width: `${percentage}%` }}
             />
           </div>
@@ -846,37 +847,39 @@ const HighlightBlock = ({
   color?: 'yellow' | 'blue' | 'green' | 'pink';
   onAnalyzeLink?: (url: string) => void;
 }) => {
-  const colorStyles = {
-    yellow: 'bg-amber-50 border-amber-200 text-amber-900',
-    blue: 'bg-sky-50 border-sky-200 text-sky-900',
-    green: 'bg-emerald-50 border-emerald-200 text-emerald-900',
-    pink: 'bg-pink-50 border-pink-200 text-pink-900',
+  const colorConfig = {
+    yellow: { bg: 'bg-[#fffbeb]', border: 'border-[#f59e0b]', text: 'text-[#78350f]', dot: 'bg-[#f59e0b]' },
+    blue:   { bg: 'bg-[#eff6ff]', border: 'border-[#3b82f6]', text: 'text-[#1e3a8a]', dot: 'bg-[#3b82f6]' },
+    green:  { bg: 'bg-[#f0fdf4]', border: 'border-[#22c55e]', text: 'text-[#14532d]', dot: 'bg-[#22c55e]' },
+    pink:   { bg: 'bg-[#fdf2f8]', border: 'border-[#ec4899]', text: 'text-[#831843]', dot: 'bg-[#ec4899]' },
   };
-
-  const iconColors = {
-    yellow: 'text-amber-500',
-    blue: 'text-sky-500',
-    green: 'text-emerald-500',
-    pink: 'text-pink-500',
-  };
+  const c = colorConfig[color];
 
   return (
-    <div className={`mb-10 px-6 py-5 rounded-xl border-2 border-dashed ${colorStyles[color]} flex items-start gap-4`}>
-      <Highlighter className={`w-5 h-5 flex-shrink-0 mt-0.5 ${iconColors[color]}`} />
-      <p className="text-base md:text-lg font-medium leading-relaxed">{parseInlineMarkdown(text, onAnalyzeLink)}</p>
+    <div className={`mb-10 px-5 sm:px-7 py-5 sm:py-6 ${c.bg} border-l-[4px] ${c.border}`}>
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className={`w-2 h-2 ${c.dot} flex-shrink-0 mt-2`} />
+        <p className={`text-base md:text-lg font-semibold leading-relaxed ${c.text}`}>
+          {parseInlineMarkdown(text, onAnalyzeLink)}
+        </p>
+      </div>
     </div>
   );
 };
 
 const DefinitionBlock = ({ items, onAnalyzeLink }: { items: DefinitionItem[]; onAnalyzeLink?: (url: string) => void }) => (
-  <div className="mb-12 space-y-4">
+  <div className="mb-12 space-y-6">
     {items.map((item, idx) => (
-      <div key={idx} className="bg-gradient-to-r from-stone-50 to-white rounded-xl p-6 border-l-4 border-amber-400 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-2 mb-2">
-          <BookOpen className="w-4 h-4 text-amber-600" />
-          <dt className="font-bold text-stone-900 text-base md:text-lg">{parseInlineMarkdown(item.term, onAnalyzeLink)}</dt>
+      <div key={idx} className="border-t-2 border-[#110f0b] pt-4">
+        <div className="flex items-baseline gap-3 mb-2">
+          <dt className="font-black text-[#110f0b] text-base md:text-lg uppercase tracking-[0.06em]">
+            {parseInlineMarkdown(item.term, onAnalyzeLink)}
+          </dt>
+          <span className="text-[#bf3627] font-mono text-[10px] font-bold">n.</span>
         </div>
-        <dd className="text-stone-600 leading-relaxed text-sm md:text-base pl-6">{parseInlineMarkdown(item.definition, onAnalyzeLink)}</dd>
+        <dd className="text-[#2d2820] leading-relaxed text-sm md:text-base pl-4 text-[#7a7069]">
+          {parseInlineMarkdown(item.definition, onAnalyzeLink)}
+        </dd>
       </div>
     ))}
   </div>
@@ -891,31 +894,31 @@ const LegacyProsConsBlock = ({
   cons: string[];
   onAnalyzeLink?: (url: string) => void;
 }) => (
-  <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div className="bg-gradient-to-br from-emerald-50 to-green-50/50 rounded-xl p-6 border border-emerald-100 shadow-sm">
-      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-200">
-        <ThumbsUp className="w-5 h-5 text-emerald-600" />
-        <h4 className="font-bold text-emerald-800 text-base md:text-lg">优点</h4>
+  <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-px bg-[#110f0b]">
+    <div className="bg-white p-6 sm:p-8">
+      <div className="flex items-center gap-2 mb-5 pb-3 border-b-2 border-[#1e4d2b]">
+        <div className="w-3 h-3 bg-[#1e4d2b]" />
+        <h4 className="font-black text-[#1e4d2b] text-sm uppercase tracking-[0.1em] font-mono">优点</h4>
       </div>
       <ul className="space-y-3">
         {pros.map((item, idx) => (
           <li key={idx} className="flex items-start gap-3">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-1 flex-shrink-0" />
-            <span className="text-emerald-800 text-sm md:text-base leading-relaxed">{parseInlineMarkdown(item, onAnalyzeLink)}</span>
+            <div className="w-2 h-2 bg-[#1e4d2b] mt-2 flex-shrink-0" />
+            <span className="text-[#2d2820] text-xs sm:text-sm leading-relaxed">{parseInlineMarkdown(item, onAnalyzeLink)}</span>
           </li>
         ))}
       </ul>
     </div>
-    <div className="bg-gradient-to-br from-rose-50 to-pink-50/50 rounded-xl p-6 border border-rose-100 shadow-sm">
-      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-rose-200">
-        <ThumbsDown className="w-5 h-5 text-rose-600" />
-        <h4 className="font-bold text-rose-800 text-base md:text-lg">缺点</h4>
+    <div className="bg-white p-6 sm:p-8">
+      <div className="flex items-center gap-2 mb-5 pb-3 border-b-2 border-[#bf3627]">
+        <div className="w-3 h-3 bg-[#bf3627]" />
+        <h4 className="font-black text-[#bf3627] text-sm uppercase tracking-[0.1em] font-mono">缺点</h4>
       </div>
       <ul className="space-y-3">
         {cons.map((item, idx) => (
           <li key={idx} className="flex items-start gap-3">
-            <Minus className="w-4 h-4 text-rose-500 mt-1 flex-shrink-0" />
-            <span className="text-rose-800 text-sm md:text-base leading-relaxed">{parseInlineMarkdown(item, onAnalyzeLink)}</span>
+            <div className="w-2 h-2 bg-[#bf3627] mt-2 flex-shrink-0" />
+            <span className="text-[#2d2820] text-xs sm:text-sm leading-relaxed">{parseInlineMarkdown(item, onAnalyzeLink)}</span>
           </li>
         ))}
       </ul>
@@ -970,12 +973,12 @@ const VideoBlock = ({ src, platform = 'custom', title }: { src: string; platform
   return (
     <div className="mb-12">
       {title && (
-        <div className="flex items-center gap-2 mb-4">
-          <Play className="w-5 h-5 text-stone-500" />
-          <h4 className="font-bold text-stone-800 text-base md:text-lg">{title}</h4>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-0 h-0 border-t-[5px] border-t-transparent border-l-[8px] border-l-[#bf3627] border-b-[5px] border-b-transparent" />
+          <h4 className="font-black text-[#110f0b] text-sm sm:text-base uppercase tracking-wider font-mono">{title}</h4>
         </div>
       )}
-      <div className="relative aspect-video rounded-xl overflow-hidden bg-stone-900 shadow-lg">
+      <div className="relative aspect-video border-2 border-[#110f0b] overflow-hidden bg-[#1a1612]">
         <iframe
           src={getEmbedUrl()}
           className="absolute inset-0 w-full h-full"
@@ -991,26 +994,26 @@ const DividerBlock = ({ dividerStyle = 'simple', text }: { dividerStyle?: 'simpl
   if (dividerStyle === 'text' && text) {
     return (
       <div className="my-12 flex items-center gap-4">
-        <div className="flex-1 h-px bg-stone-200" />
-        <span className="text-sm font-medium text-stone-400 uppercase tracking-widest">{text}</span>
-        <div className="flex-1 h-px bg-stone-200" />
+        <div className="flex-1 h-px bg-[#e8e2d6]" />
+        <span className="text-[10px] font-black text-[#7a7069] uppercase tracking-[0.18em] font-mono">{text}</span>
+        <div className="flex-1 h-px bg-[#e8e2d6]" />
       </div>
     );
   }
 
   if (dividerStyle === 'decorated') {
     return (
-      <div className="my-12 flex items-center justify-center gap-3">
-        <div className="w-16 h-px bg-stone-300" />
-        <div className="w-2 h-2 rounded-full bg-amber-400" />
-        <div className="w-2 h-2 rounded-full bg-stone-400" />
-        <div className="w-2 h-2 rounded-full bg-amber-400" />
-        <div className="w-16 h-px bg-stone-300" />
+      <div className="my-12 flex items-center justify-center gap-2">
+        <div className="w-12 h-px bg-[#e8e2d6]" />
+        <div className="w-2 h-2 bg-[#bf3627] rotate-45" />
+        <div className="w-2 h-2 border border-[#e8e2d6] rotate-45" />
+        <div className="w-2 h-2 bg-[#bf3627] rotate-45" />
+        <div className="w-12 h-px bg-[#e8e2d6]" />
       </div>
     );
   }
 
-  return <hr className="my-12 border-t border-stone-200" />;
+  return <hr className="my-10 border-t border-[#e8e2d6]" />;
 };
 
 const LinkCardBlock = ({ url, title, description, image }: { url: string; title: string; description?: string; image?: string }) => (
@@ -1020,23 +1023,23 @@ const LinkCardBlock = ({ url, title, description, image }: { url: string; title:
     rel="noopener noreferrer"
     className="mb-10 block group"
   >
-    <div className="flex flex-col md:flex-row gap-4 p-5 rounded-xl border border-stone-200 bg-white hover:border-stone-300 hover:shadow-lg transition-all">
+    <div className="flex flex-col md:flex-row gap-0 border-2 border-[#110f0b] bg-white hover:border-[#bf3627] transition-colors overflow-hidden">
       {image && (
-        <div className="w-full md:w-48 h-32 rounded-lg overflow-hidden bg-stone-100 flex-shrink-0">
-          <img src={image} alt={title} className="w-full h-full object-cover" />
+        <div className="w-full md:w-44 h-28 sm:h-32 bg-[#1a1612] flex-shrink-0 overflow-hidden">
+          <img src={image} alt={title} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="font-bold text-stone-800 text-base md:text-lg group-hover:text-amber-600 transition-colors truncate">
+      <div className="flex-1 min-w-0 p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h4 className="font-black text-[#110f0b] text-sm sm:text-base tracking-tight group-hover:text-[#bf3627] transition-colors leading-tight">
             {title}
           </h4>
-          <ExternalLink className="w-4 h-4 text-stone-400 flex-shrink-0 mt-1" />
+          <ExternalLink className="w-3.5 h-3.5 text-[#7a7069] flex-shrink-0 mt-0.5" />
         </div>
         {description && (
-          <p className="text-stone-600 text-sm mt-2 line-clamp-2 leading-relaxed">{description}</p>
+          <p className="text-[#7a7069] text-xs sm:text-sm mt-1 line-clamp-2 leading-relaxed">{description}</p>
         )}
-        <p className="text-stone-400 text-xs mt-3 truncate">{url}</p>
+        <p className="text-[#7a7069]/60 text-[10px] mt-2 truncate font-mono">{url}</p>
       </div>
     </div>
   </a>
@@ -1050,27 +1053,27 @@ const RatingBlock = ({ items }: { items: RatingItem[] }) => {
     const emptyStars = Math.floor(maxScore) - fullStars - (hasHalfStar ? 1 : 0);
 
     for (let i = 0; i < fullStars; i++) {
-      stars.push(<Star key={`full-${i}`} className="w-5 h-5 text-amber-400 fill-amber-400" />);
+      stars.push(<Star key={`full-${i}`} className="w-4 h-4 text-[#bf3627] fill-[#bf3627]" />);
     }
     if (hasHalfStar) {
-      stars.push(<StarHalf key="half" className="w-5 h-5 text-amber-400 fill-amber-400" />);
+      stars.push(<StarHalf key="half" className="w-4 h-4 text-[#bf3627] fill-[#bf3627]" />);
     }
     for (let i = 0; i < emptyStars; i++) {
-      stars.push(<Star key={`empty-${i}`} className="w-5 h-5 text-stone-200" />);
+      stars.push(<Star key={`empty-${i}`} className="w-4 h-4 text-[#e8e2d6]" />);
     }
     return stars;
   };
 
   return (
-    <div className="mb-12 space-y-4">
+    <div className="mb-12 border-t-2 border-[#110f0b]">
       {items.map((item, idx) => {
         const maxScore = item.maxScore || 5;
         return (
-          <div key={idx} className="flex items-center justify-between p-5 bg-white rounded-xl border border-stone-200 hover:border-stone-300 transition-all">
-            <span className="font-bold text-stone-700 text-sm md:text-base">{item.label}</span>
-            <div className="flex items-center gap-3">
+          <div key={idx} className="flex items-center justify-between py-4 border-b border-[#e8e2d6] last:border-0">
+            <span className="font-bold text-[#110f0b] text-xs sm:text-sm uppercase tracking-wider font-mono">{item.label}</span>
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex gap-0.5">{renderStars(item.score, maxScore)}</div>
-              <span className="text-sm font-mono font-bold text-stone-500 min-w-[50px] text-right">
+              <span className="text-xs font-black font-mono text-[#7a7069]">
                 {item.score}/{maxScore}
               </span>
             </div>
@@ -1147,37 +1150,42 @@ const BlockRenderer: React.FC<{ block: ContentBlock; onAnalyzeLink?: (url: strin
 
 // --- Section Renderer ---
 
-// 去除 section 标题中的序号前缀（渲染器已自动添加章节编号）
 const stripTitleNumbering = (title: string): string => {
   return title
-    // "1. xxx", "1.2 xxx", "1.2.3 xxx"
     .replace(/^[\d]+(?:\.[\d]+)*\.?\s+/, '')
-    // "一、xxx", "二、xxx", "（一）xxx" — 中文顿号/括号编号
     .replace(/^[一二三四五六七八九十百千]+[、．.]\s*/, '')
     .replace(/^[（(][一二三四五六七八九十百千\d]+[)）]\s*/, '')
-    // "第一章 xxx", "第一节 xxx", "第一部分 xxx", "第1章 xxx"
     .replace(/^第[一二三四五六七八九十百千\d]+[章节部分条款篇]\s*[：:\s]\s*/, '')
     .replace(/^第[一二三四五六七八九十百千\d]+[章节部分条款篇]\s+/, '')
-    // "Part 1: xxx", "Chapter 1 xxx", "Section 1.2 xxx"
     .replace(/^(?:Part|Chapter|Section)\s+[\d.]+[：:\s]\s*/i, '')
     .replace(/^(?:Part|Chapter|Section)\s+[\d.]+\s+/i, '')
-    // "(1) xxx", "（1）xxx"
     .replace(/^[（(][\d]+[)）]\s*/, '')
     .trim();
 };
 
 const SectionRenderer: React.FC<{ section: ArticleSection; index: number; onAnalyzeLink?: (url: string) => void }> = ({ section, index, onAnalyzeLink }) => (
-  <div className="mb-12 sm:mb-16 md:mb-20 last:mb-0 relative">
-    <div className="flex items-baseline gap-3 sm:gap-4 md:gap-8 mb-8 sm:mb-12 md:mb-16 border-b border-stone-200 pb-4 sm:pb-6 relative">
-      <div className="absolute bottom-0 left-0 w-16 sm:w-20 h-0.5 bg-gradient-to-r from-stone-400 to-stone-300" />
-      <div className="text-2xl sm:text-3xl md:text-4xl font-serif font-black text-stone-300 select-none leading-none">
-        {String(index + 1).padStart(2, '0')}
-      </div>
-      <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-stone-900 tracking-tight flex-1">
+  <div className="mb-14 sm:mb-20 md:mb-24 last:mb-0 relative">
+    {/* Giant watermark number */}
+    <div
+      className="absolute -left-1 sm:-left-2 -top-6 sm:-top-8 leading-none text-[#110f0b]/[0.04] select-none pointer-events-none z-0 font-black tracking-tighter"
+      style={{
+        fontSize: 'clamp(6rem, 14vw, 11rem)',
+        fontFamily: "'Bebas Neue', 'DM Mono', monospace",
+      }}
+    >
+      {String(index + 1).padStart(2, '0')}
+    </div>
+
+    {/* Section header */}
+    <div className="relative z-10 mb-8 sm:mb-10 pb-4 sm:pb-5">
+      <div className="w-6 h-[3px] bg-[#bf3627] mb-3 sm:mb-4" />
+      <h2 className="text-2xl sm:text-3xl md:text-[2.2rem] font-serif font-black text-[#110f0b] tracking-tight leading-[1.15]">
         {stripTitleNumbering(section.title)}
       </h2>
+      <div className="mt-4 sm:mt-5 w-full h-px bg-[#e8e2d6]" />
     </div>
-    <div className="max-w-3xl mx-auto">
+
+    <div className="relative z-10 max-w-3xl mx-auto">
       {section.content.map((block, idx) => (
         <BlockRenderer key={idx} block={block} onAnalyzeLink={onAnalyzeLink} />
       ))}
@@ -1194,45 +1202,56 @@ interface ArticleRendererProps {
 
 export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyzeLink }) => {
   return (
-    <div className="max-w-4xl w-full mx-auto bg-white min-h-screen shadow-xl shadow-stone-900/5 overflow-hidden rounded-none md:rounded-3xl ring-1 ring-stone-900/5 transition-all box-border">
+    <div className="max-w-4xl w-full mx-auto bg-white min-h-screen overflow-hidden md:border-x-2 border-[#110f0b] transition-all box-border">
       {/* Header */}
-      <header className="bg-stone-950 text-white px-4 py-10 sm:px-8 sm:py-16 md:px-20 md:py-20 relative overflow-hidden">
-        {/* Decorative background elements */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black opacity-80" />
-        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-amber-500/[0.07] to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-stone-600/20 to-transparent rounded-full blur-2xl" />
+      <header className="bg-[#110f0b] text-white px-4 py-10 sm:px-8 sm:py-16 md:px-20 md:py-20 relative overflow-hidden">
+        {/* Subtle grid texture */}
+        <div
+          className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,1) 40px), repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,1) 40px)',
+          }}
+        />
+        {/* Vermillion accent stripe */}
+        <div className="absolute left-0 top-0 w-[3px] h-full bg-[#bf3627]" />
 
-        <div className="relative z-10 max-w-3xl mx-auto text-left">
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs sm:text-sm font-medium text-stone-400 uppercase tracking-wider sm:tracking-widest mb-6 sm:mb-8">
+        <div className="relative z-10 max-w-3xl mx-auto">
+          {/* Meta row */}
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-[10px] sm:text-[11px] font-mono text-[#5a5248] uppercase tracking-[0.16em] mb-7 sm:mb-10">
             {data.meta?.date && (
-              <span className="flex items-center gap-1.5 sm:gap-2">
-                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {data.meta.date}
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3 h-3" /> {data.meta.date}
               </span>
             )}
             {data.meta?.readTime && (
-              <span className="flex items-center gap-1.5 sm:gap-2">
-                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {data.meta.readTime}
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3 h-3" /> {data.meta.readTime}
               </span>
             )}
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-black mb-6 sm:mb-8 md:mb-10 leading-tight text-stone-50 drop-shadow-sm">
+          {/* Title */}
+          <h1 className="text-[2rem] sm:text-[3rem] md:text-[3.8rem] font-serif font-black mb-6 sm:mb-8 leading-[1.05] text-white tracking-tight">
             {data.title}
           </h1>
 
+          {/* Red rule */}
+          <div className="w-14 h-[3px] bg-[#bf3627] mb-5 sm:mb-7" />
+
           {data.subtitle && (
-            <p className="text-base sm:text-lg md:text-2xl text-stone-300 font-light leading-relaxed max-w-2xl border-l-2 border-amber-400 pl-3 sm:pl-4 md:pl-6 text-left">
+            <p className="text-sm sm:text-base md:text-lg text-[#8a8077] font-light leading-relaxed max-w-2xl">
               {data.subtitle}
             </p>
           )}
 
           {data.meta?.author && (
-            <div className="mt-10 sm:mt-16 flex items-center gap-3 sm:gap-4">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center text-amber-300 ring-1 ring-amber-400/30">
-                          <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </div>
-              <div className="text-left">
-                <p className="text-[10px] sm:text-xs text-stone-400 uppercase tracking-wider sm:tracking-widest font-bold">Written by</p>
+            <div className="mt-10 sm:mt-14 flex items-center gap-3 sm:gap-4 border-t border-[#2a2520] pt-6 sm:pt-8">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 bg-[#bf3627] flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-[9px] font-mono text-[#5a5248] uppercase tracking-[0.16em] mb-0.5">AUTHOR</p>
                 <p className="text-sm sm:text-base font-bold text-white">{data.meta.author}</p>
               </div>
             </div>
@@ -1241,21 +1260,24 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ data, onAnalyz
       </header>
 
       {/* Content Body */}
-      <main className="px-4 py-8 sm:px-6 sm:py-12 md:px-20 md:py-24 bg-white">
+      <main className="px-4 py-10 sm:px-6 sm:py-14 md:px-20 md:py-20 bg-white">
         {data.sections.map((section, idx) => (
           <SectionRenderer key={idx} section={section} index={idx} onAnalyzeLink={onAnalyzeLink} />
         ))}
 
-        <footer className="mt-20 sm:mt-32 pt-8 sm:pt-12 border-t border-stone-100 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-8 h-px bg-stone-200" />
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            <div className="w-8 h-px bg-stone-200" />
+        <footer className="mt-20 sm:mt-28 pt-8 sm:pt-10 border-t-2 border-[#110f0b] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-[#bf3627] rotate-45" />
+            <div className="w-2 h-2 border border-[#e8e2d6] rotate-45" />
           </div>
-          <p className="text-stone-400 text-xs sm:text-sm font-medium flex items-center justify-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
-            Generated by Infographic Renderer • {new Date().getFullYear()}
+          <p className="text-[#7a7069] text-[10px] sm:text-xs font-mono uppercase tracking-[0.14em] flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-[#bf3627]" />
+            Infographic Renderer · {new Date().getFullYear()}
           </p>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 border border-[#e8e2d6] rotate-45" />
+            <div className="w-2 h-2 bg-[#bf3627] rotate-45" />
+          </div>
         </footer>
       </main>
     </div>

@@ -49,22 +49,36 @@ body::-webkit-scrollbar {
 :root {
   --font-sans: "Noto Sans SC", "Noto Sans", sans-serif;
   --font-serif: "Noto Serif SC", "Noto Serif", serif;
+  --font-display: "Bebas Neue", "DM Mono", monospace;
+  --font-mono: "DM Mono", "Noto Sans SC", monospace;
+
+  /* New Wave Editorial palette */
+  --bg: #faf8f3;
+  --ink: #110f0b;
+  --accent: #bf3627;
+  --accent-2: #1a3a5c;
+  --surface: #faf8f3;
+  --muted: #7a7069;
+  --border-light: #e8e2d6;
+  --border-dark: #2a2520;
 }
 
 body {
   font-family: var(--font-sans);
+  background-color: var(--bg);
 }
 
+/* Legacy theme vars kept for any leftover references */
 .articles-theme {
-  --paper: #f7f1e6;
-  --paper-deep: #eadfcd;
-  --ink: #2a221c;
-  --muted: #6f655b;
-  --accent: #d97706;
-  --accent-strong: #b45309;
-  --accent-soft: #fff1cf;
-  --card: rgba(255, 255, 255, 0.82);
-  --ring: rgba(217, 119, 6, 0.25);
+  --paper: var(--bg);
+  --paper-deep: #ede8df;
+  --ink: var(--ink);
+  --muted: var(--muted);
+  --accent: var(--accent);
+  --accent-strong: #8a2019;
+  --accent-soft: #fdf6f5;
+  --card: rgba(255, 255, 255, 0.9);
+  --ring: rgba(191, 54, 39, 0.2);
   --font-sans: "Noto Sans SC", "Noto Sans", sans-serif;
   --font-serif: "Noto Serif SC", "Noto Serif", serif;
 }
