@@ -330,10 +330,12 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
 
   return (
     <div className={`grid ${gridCols[columns]} mb-10 sm:mb-12 border-t-2 border-l-2 border-[#110f0b]`}>
-      {items.map((item, idx) => (
+      {items.map((item, idx) => {
+        const isLoneLastItem = idx === items.length - 1 && items.length % columns === 1;
+        return (
         <div
           key={idx}
-          className="bg-[#faf8f3] p-5 sm:p-7 relative group hover:bg-white transition-colors duration-200 overflow-hidden border-r-2 border-b-2 border-[#110f0b]"
+          className={`bg-[#faf8f3] p-5 sm:p-7 relative group hover:bg-white transition-colors duration-200 overflow-hidden border-r-2 border-b-2 border-[#110f0b] ${isLoneLastItem ? 'md:col-span-full' : ''}`}
         >
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#bf3627]" />
           <div
@@ -347,7 +349,8 @@ const GridBlock = ({ items, columns }: { items: GridItem[]; columns: 1 | 2 | 3 }
           </h4>
           <p className="text-[#7a7069] leading-relaxed text-xs sm:text-sm">{item.description}</p>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
