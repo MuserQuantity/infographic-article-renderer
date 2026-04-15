@@ -403,6 +403,14 @@ const ImageBlock = ({ src, alt, caption }: { src: string; alt: string; caption?:
   );
 };
 
+const getStatValueSizeClass = (value: string): string => {
+  const len = value.length;
+  if (len <= 6) return 'text-5xl sm:text-6xl md:text-7xl';
+  if (len <= 10) return 'text-4xl sm:text-5xl md:text-6xl';
+  if (len <= 16) return 'text-3xl sm:text-4xl md:text-5xl';
+  return 'text-2xl sm:text-3xl md:text-4xl';
+};
+
 const LegacyStatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?: 1 | 2 | 3 }) => {
   const gridCols = {
     1: 'grid-cols-1',
@@ -415,7 +423,7 @@ const LegacyStatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?:
       {items.map((item, idx) => (
         <div
           key={idx}
-          className="py-6 sm:py-8 px-4 sm:px-6 border-b-2 sm:border-b-0 sm:border-r-2 border-[#e8e2d6] last:border-0"
+          className="py-6 sm:py-8 px-4 sm:px-6 border-b-2 sm:border-b-0 sm:border-r-2 border-[#e8e2d6] last:border-0 overflow-hidden"
         >
           <div
             className="text-[10px] font-black text-[#7a7069] uppercase tracking-[0.15em] mb-3 font-mono"
@@ -423,7 +431,7 @@ const LegacyStatsBlock = ({ items, columns = 3 }: { items: StatItem[]; columns?:
             {item.label}
           </div>
           <div
-            className="text-5xl sm:text-6xl md:text-7xl font-black text-[#110f0b] leading-none tracking-tighter mb-3"
+            className={`${getStatValueSizeClass(item.value)} font-black text-[#110f0b] leading-none tracking-tighter mb-3 break-words`}
             style={{ fontFamily: "'Bebas Neue', 'DM Mono', monospace" }}
           >
             {item.value}
