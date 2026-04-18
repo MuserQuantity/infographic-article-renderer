@@ -189,22 +189,22 @@ const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: st
     .trim();
 
   return (
-    <figure className="relative mb-10 sm:mb-14 mt-6 sm:mt-10 pt-5 sm:pt-7 border-t-2 border-[#110f0b]">
+    <figure className="mb-10 sm:mb-14 mt-8 sm:mt-12 pt-7 sm:pt-9 pb-6 sm:pb-8 border-t-2 border-[#110f0b]">
       <span
         aria-hidden="true"
-        className="absolute -top-2 sm:-top-3 left-0 text-5xl sm:text-6xl leading-none text-[#bf3627]/25 select-none pointer-events-none"
+        className="block text-5xl sm:text-6xl leading-none text-[#bf3627]/25 select-none pointer-events-none mb-3 sm:mb-4"
         style={{ fontFamily: "'Georgia', 'Noto Serif SC', 'Source Han Serif SC', serif" }}
       >
         &ldquo;
       </span>
       <blockquote
-        className="text-xl sm:text-2xl md:text-3xl font-medium text-[#2d2820] leading-snug pl-6 sm:pl-8"
+        className="text-xl sm:text-2xl md:text-3xl font-medium text-[#2d2820] leading-snug"
         style={{ fontFamily: "'Georgia', 'Noto Serif SC', 'Source Han Serif SC', serif" }}
       >
         {parseInlineMarkdown(cleanText, onAnalyzeLink)}
       </blockquote>
       {author && (
-        <figcaption className="mt-4 sm:mt-5 text-right text-[11px] sm:text-xs font-semibold text-[#7a7069] tracking-[0.08em]">
+        <figcaption className="mt-5 sm:mt-6 text-right text-[11px] sm:text-xs font-semibold text-[#7a7069] tracking-[0.08em]">
           <span className="text-[#bf3627] mr-1.5">—</span>
           {author}
         </figcaption>
