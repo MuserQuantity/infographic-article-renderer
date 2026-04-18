@@ -565,19 +565,54 @@ const normalizeComparison = (columns: string[], rows: ComparisonRow[]) => {
     effectiveColumns = columns.slice(1);
   }
 
-  const columnCount = Math.max(effectiveColumns.length, maxValues);
-  const normalizedColumns = effectiveColumns.slice(0, columnCount);
-  while (normalizedColumns.length < columnCount) normalizedColumns.push('');
-  const normalizedRows = rows.map((row) => {
-    const values = row.values.slice(0, columnCount);
-    while (values.length < columnCount) values.push('');
+  const paddedColumnCount = Math.max(effectiveColumns.length, maxValues);
+  const paddedColumns = effectiveColumns.slice(0, paddedColumnCount);
+  while (paddedColumns.length < paddedColumnCount) paddedColumns.push('');
+  const paddedRows = rows.map((row) => {
+    const values = row.values.slice(0, paddedColumnCount);
+    while (values.length < paddedColumnCount) values.push('');
     return { ...row, values };
   });
-  return { columnCount, columns: normalizedColumns, rows: normalizedRows, labelHeader };
+
+  const keepColumn: boolean[] = [];
+  for (let c = 0; c < paddedColumnCount; c++) {
+    if (paddedRows.length === 0) {
+      keepColumn.push(true);
+      continue;
+    }
+    const allEmpty = paddedRows.every((row) => isEmptyCellValue(row.values[c]));
+    keepColumn.push(!allEmpty);
+  }
+  if (paddedColumnCount > 0 && !keepColumn.some(Boolean)) {
+    keepColumn.fill(true);
+  }
+
+  const filteredColumns = paddedColumns.filter((_, idx) => keepColumn[idx]);
+  const filteredRows = paddedRows
+    .map((row) => ({
+      ...row,
+      values: row.values.filter((_, idx) => keepColumn[idx]),
+    }))
+    .filter((row) => {
+      const hasLabel = (row.label ?? '').trim().length > 0;
+      const hasAnyValue = row.values.some((v) => !isEmptyCellValue(v));
+      return hasLabel || hasAnyValue;
+    });
+
+  return {
+    columnCount: filteredColumns.length,
+    columns: filteredColumns,
+    rows: filteredRows,
+    labelHeader,
+  };
 };
 
 const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: ComparisonRow[] }) => {
   const { columnCount, columns: safeColumns, rows: safeRows, labelHeader } = normalizeComparison(columns, rows);
+
+  if (columnCount === 0 || safeRows.length === 0) {
+    return null;
+  }
 
   return (
     <div className="mb-10 sm:mb-14 border-2 border-[#110f0b] bg-white overflow-hidden">
@@ -601,7 +636,7 @@ const LegacyComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Com
                   key={vIdx}
                   className={`px-3 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm text-[#2d2820] border-t border-l border-[#e8e2d6] leading-relaxed text-left whitespace-normal break-words ${vIdx === 0 ? 'font-semibold text-[#110f0b]' : ''}`}
                 >
-                  {parseInlineMarkdown(val)}
+                  {renderCellContent(val)}
                 </div>
               ))}
             </React.Fragment>
@@ -635,21 +670,62 @@ const ComparisonBlock = ({ columns, rows }: { columns: string[]; rows: Compariso
   }
 };
 
+const EMPTY_CELL_TOKENS = new Set(['', '—', '–', '-', '−', 'n/a', 'na']);
+
+const isEmptyCellValue = (s: string | undefined | null): boolean => {
+  if (s == null) return true;
+  return EMPTY_CELL_TOKENS.has(String(s).trim().toLowerCase());
+};
+
+const renderCellContent = (cell: string, className = ''): React.ReactNode => {
+  if (isEmptyCellValue(cell)) {
+    return <span className={`text-[#c8c0b4] select-none ${className}`} aria-hidden="true">—</span>;
+  }
+  return parseInlineMarkdown(cell);
+};
+
 const normalizeTable = (headers: string[], rows: string[][]) => {
   const maxCells = rows.reduce((max, row) => Math.max(max, row.length), 0);
-  const columnCount = Math.max(headers.length, maxCells);
-  const normalizedHeaders = headers.slice(0, columnCount);
-  while (normalizedHeaders.length < columnCount) normalizedHeaders.push('');
-  const normalizedRows = rows.map((row) => {
-    const cells = row.slice(0, columnCount);
-    while (cells.length < columnCount) cells.push('');
+  const paddedColumnCount = Math.max(headers.length, maxCells);
+  const paddedHeaders = headers.slice(0, paddedColumnCount);
+  while (paddedHeaders.length < paddedColumnCount) paddedHeaders.push('');
+  const paddedRows = rows.map((row) => {
+    const cells = row.slice(0, paddedColumnCount);
+    while (cells.length < paddedColumnCount) cells.push('');
     return cells;
   });
-  return { columnCount, headers: normalizedHeaders, rows: normalizedRows };
+
+  const keepColumn: boolean[] = [];
+  for (let c = 0; c < paddedColumnCount; c++) {
+    if (paddedRows.length === 0) {
+      keepColumn.push(true);
+      continue;
+    }
+    const allEmpty = paddedRows.every((row) => isEmptyCellValue(row[c]));
+    keepColumn.push(!allEmpty);
+  }
+  if (paddedColumnCount > 0 && !keepColumn.some(Boolean)) {
+    keepColumn.fill(true);
+  }
+
+  const filteredHeaders = paddedHeaders.filter((_, idx) => keepColumn[idx]);
+  const filteredRows = paddedRows
+    .map((row) => row.filter((_, idx) => keepColumn[idx]))
+    .filter((row) => row.some((cell) => !isEmptyCellValue(cell)));
+
+  return {
+    columnCount: filteredHeaders.length,
+    headers: filteredHeaders,
+    rows: filteredRows,
+  };
 };
 
 const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) => {
   const { columnCount, headers: safeHeaders, rows: safeRows } = normalizeTable(headers, rows);
+
+  if (columnCount === 0 || safeRows.length === 0) {
+    return null;
+  }
 
   return (
     <div className="mb-10 sm:mb-14 border-2 border-[#110f0b] bg-white overflow-hidden">
@@ -669,7 +745,7 @@ const TableBlock = ({ headers, rows }: { headers: string[]; rows: string[][] }) 
               <tr key={idx} className={`transition-colors hover:bg-[#faf8f3] ${idx % 2 === 1 ? 'bg-[#faf8f3]/50' : 'bg-white'}`}>
                 {row.map((cell, cIdx) => (
                   <td key={cIdx} className="px-3 py-3 sm:px-5 sm:py-4 text-xs sm:text-sm text-[#2d2820] leading-relaxed first:pl-4 sm:first:pl-6 first:font-semibold first:text-[#110f0b]">
-                    {parseInlineMarkdown(cell)}
+                    {renderCellContent(cell)}
                   </td>
                 ))}
               </tr>
@@ -882,12 +958,9 @@ const DefinitionBlock = ({ items, onAnalyzeLink }: { items: DefinitionItem[]; on
   <div className="mb-12 space-y-6">
     {items.map((item, idx) => (
       <div key={idx} className="border-t-2 border-[#110f0b] pt-4">
-        <div className="flex items-baseline gap-3 mb-2">
-          <dt className="font-black text-[#110f0b] text-base md:text-lg uppercase tracking-[0.06em]">
-            {parseInlineMarkdown(item.term, onAnalyzeLink)}
-          </dt>
-          <span className="text-[#bf3627] font-mono text-[10px] font-bold">n.</span>
-        </div>
+        <dt className="font-black text-[#110f0b] text-base md:text-lg tracking-[0.02em] mb-2">
+          {parseInlineMarkdown(item.term, onAnalyzeLink)}
+        </dt>
         <dd className="text-[#2d2820] leading-relaxed text-sm md:text-base pl-4 text-[#7a7069]">
           {parseInlineMarkdown(item.definition, onAnalyzeLink)}
         </dd>

@@ -265,16 +265,33 @@ SYSTEM_PROMPT = """你是一个专业的内容结构化与排版设计助手。�
 4. 适度留白：在话题转换处使用 divider（decorated 或 text 样式）
 5. 强调得当：关键结论或核心观点用 highlight 或 callout 突出，不要全用 paragraph 平铺
 
+视觉克制原则（避免花哨失衡，非常重要）：
+6. callout 的 variant 语义明确且克制使用：
+   - info=中性补充/定义/背景；warning=风险提醒/争议点；success=积极结论/验证成功
+   - 整篇文章 variant 种类不要超过 2 种
+   - 同一 section 内不要连续出现 callout；多个 callout 之间至少隔 1-2 个其他 block
+7. highlight 的 color 全文统一：**整篇文章所有 highlight 必须使用同一颜色**（默认 yellow），不得混用
+8. table 与 comparison 的选择：
+   - comparison：用于"横向对比 2-4 个概念/方案/对象"，每行一个维度（label），每列一个被比较对象
+   - table：用于纯数据查阅（词汇表、日程表、参数表等），列与列之间是同级数据
+   - 如果你打算生成的 table 第一列起到"行标签"作用（如"对比项""指标"），**必须改用 comparison**
+9. 禁止生成信息不完整的表格：
+   - 禁止输出存在"整列都是 — / 空值 / 不适用"的 table 或 comparison
+   - 如果某列信息不足以填满，**宁可减少列数，也不要留空**
+   - table.headers 禁止使用"对比项""项目""参数""维度"等无实际含义的列名
+10. 对一个话题不要同时堆 comparison + table + proscons 三种对比类块，选一种最合适的即可
+
 内容块选择策略：
 - 数据/指标/百分比 → stat（优先）或 progress
-- 对比两个以上事物 → comparison 或 proscons
+- 对比两个以上事物 → comparison（优先）或 proscons
+- 原始数据/查询表 → table
 - 流程/步骤/阶段 → steps 或 timeline
 - 核心要点/清单 → list（check 或 number 样式）
 - 关键概念解释 → definition
 - 常见问题 → accordion
 - 名言/观点引用 → quote
 - 重要提醒/警告 → callout（选择合适的 variant）
-- 关键结论/金句 → highlight
+- 关键结论/金句 → highlight（全文同色）
 - 特征/功能展示 → grid（2-3 列）
 - 评分/评价 → rating
 - 纯叙述内容 → paragraph（搭配 **粗体** 标注重点词）"""
@@ -338,7 +355,8 @@ comparison 的 rows 必须是对象数组，每个对象包含 label 和 values 
 并且必须满足：
 - values 的长度必须与 columns 的长度完全一致
 - 每个 values 项都必须是完整短句，不要把一句话拆到相邻列
-- 不允许空字符串；缺失信息请使用 "—" 占位
+- **禁止生成整列都为空/"—"/"N/A"的对比表。如某列信息不足以填满所有行，应减少列数，不要凑数留空**
+- 某一格如实在无内容可填，可以使用 "—"；但不得因此让整列全为 "—"
 
 ✅ 正确格式：
 {{"type": "comparison", "columns": ["GPT-5", "GPT-4"], "rows": [
@@ -351,6 +369,13 @@ comparison 的 rows 必须是对象数组，每个对象包含 label 和 values 
   ["准确率", "95%", "90%"],
   ["速度", "快", "中"]
 ]}}
+
+⚠️ 【table 与 comparison 的选择 - 避免常见错误】
+- **table 专门用于"纯数据查阅"**（词汇表、参数表、日程表等），列之间是同级数据项，不存在"行标签"语义
+- **comparison 专门用于"横向对比"**，第一列永远是维度名（label），后续列是被比较对象
+- **如果你想生成的 table 第一列是 "对比项"、"指标"、"项目"、"维度" 等行标签性质的列名 → 必须改用 comparison**
+- table.headers 禁止出现 "对比项"、"项目"、"参数"、"维度" 等无实际含义的占位列名
+- 禁止生成"某一整列全为 —/空"的 table；若填不满某列，减少列数，或拆成两个独立 block
 
 ContentBlock 示例：
 - 段落: {{"type": "paragraph", "text": "这是一段 **重点** 内容"}}
@@ -414,6 +439,15 @@ data
 16. 在重要数据出现时优先使用 stat 而非写在 paragraph 中；在有步骤/流程时优先使用 steps 而非 list；在有明确对比时优先使用 comparison 而非 table
 17. 文章开头的第一个 section 建议以非 paragraph 的视觉型 block 开场（如 tags、stat、highlight、callout），快速吸引读者注意力
 
+视觉克制规则（避免花哨失衡）：
+18. callout 的 variant 应克制使用：
+    - variant 语义：info=中性补充/背景定义、warning=风险/争议点、success=积极结论/验证
+    - **整篇文章 variant 种类不要超过 2 种**（例如只用 info + warning）
+    - 同一 section 内不要连续出现 callout；多个 callout 之间至少隔 1-2 个其他类型 block
+19. highlight 的 color 全文统一：**整篇文章所有 highlight 必须使用同一颜色**（默认 yellow）。不得在不同段落使用不同颜色，以免视觉混乱
+20. 同一话题不要同时堆叠 comparison + table + proscons 三种对比性 block；选最合适的一种即可
+21. definition 的 term 应该是简洁的名词短语（如"功能性情感"、"创造性毁灭"），不要写成整句话或问句
+
 {language_instruction}
 
 【最终检查】输出前请确认：你的 sections 是否覆盖了文章从开头到结尾的所有主题？如果有遍漏，请补充完整后再输出。
@@ -475,10 +509,11 @@ ANALYST_SYSTEM_PROMPT = """你是一个专业的内容分析与结构化专家�
 
 内容类型选择策略：
 - 数据/指标/百分比 → stat 或 progress
-- 对比事物 → comparison 或 proscons
+- 对比 2-4 个概念/方案 → comparison（优先）或 proscons
+- 原始数据/查询表（词汇表/参数表/日程表） → table
 - 流程/步骤 → steps 或 timeline
 - 要点清单 → list
-- 关键概念 → definition
+- 关键概念（简洁名词）→ definition
 - 常见问题 → accordion
 - 名言/观点 → quote
 - 重要提醒 → callout
@@ -489,7 +524,16 @@ ANALYST_SYSTEM_PROMPT = """你是一个专业的内容分析与结构化专家�
 - 禁止连续超过 2 个 paragraph，中间插入其他类型打破单调
 - 每个章节至少包含 2 种不同类型
 - 每个章节推荐包含 1 个视觉焦点（stat/grid/comparison/timeline/steps 等）
-- section 的标题禁止包含序号前缀（渲染器会自动添加编号）"""
+- section 的标题禁止包含序号前缀（渲染器会自动添加编号）
+
+视觉克制规则（避免花哨失衡，非常重要）：
+- callout variant 克制使用：整篇文章 variant 种类不要超过 2 种；variant 语义明确（info=补充背景、warning=风险/争议、success=积极验证）；同一章节不要连续出现 callout
+- highlight color 全文统一：整篇所有 highlight 使用同一颜色（默认 yellow），不得在不同段落切换颜色
+- table vs comparison：如果"第一列是行标签、后续列是被比较对象"的结构 → 必须标注为 comparison，不是 table；table 只用于纯数据查阅，列与列是同级数据
+- **禁止生成整列信息缺失的 comparison/table**：如某列信息不足，应减少列数，不要留空或用 — 凑数
+- table 表头禁用"对比项""项目""参数""维度"这类占位列名
+- 同一话题不要同时用 comparison + table + proscons 三种对比 block，选一种最合适的
+- definition 的 term 必须是简洁名词短语，不要写成整句"""
 
 # Model A: 第一个 chunk 的用户提示词
 ANALYST_USER_PROMPT_FIRST = """请分析以下文章内容，输出结构化的内容分析报告。
@@ -976,14 +1020,12 @@ def normalize_blocks(data: dict) -> dict:
                         normalized_values = []
                         for value in values:
                             text = str(value).strip() if value is not None else ""
-                            normalized_values.append(text if text else "—")
+                            normalized_values.append(text)
 
                         if expected_values_count > 0:
                             normalized_values = normalized_values[:expected_values_count]
                             while len(normalized_values) < expected_values_count:
-                                normalized_values.append("—")
-                        elif not normalized_values:
-                            normalized_values = ["—"]
+                                normalized_values.append("")
 
                         if label:
                             normalized_rows.append({"label": label, "values": normalized_values})

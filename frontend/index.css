@@ -72,9 +72,6 @@ body {
 .articles-theme {
   --paper: var(--bg);
   --paper-deep: #ede8df;
-  --ink: var(--ink);
-  --muted: var(--muted);
-  --accent: var(--accent);
   --accent-strong: #8a2019;
   --accent-soft: #fdf6f5;
   --card: rgba(255, 255, 255, 0.9);
