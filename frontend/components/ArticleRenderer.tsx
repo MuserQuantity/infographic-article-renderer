@@ -189,21 +189,27 @@ const QuoteBlock = ({ text, author, onAnalyzeLink }: { text: string; author?: st
     .trim();
 
   return (
-    <div className="relative mb-10 sm:mb-14 mt-6 sm:mt-10">
-      <div className="border-t-2 border-b border-[#110f0b] pt-5 sm:pt-7 pb-6 sm:pb-8">
-        <p className="text-xl sm:text-2xl md:text-3xl font-medium text-[#3d3833] mb-5 sm:mb-7 leading-snug italic" style={{ fontFamily: "'Georgia', 'Noto Serif SC', 'Source Han Serif SC', serif" }}>
-          {parseInlineMarkdown(cleanText, onAnalyzeLink)}
-        </p>
-        {author && (
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-[2px] bg-[#bf3627]" />
-            <footer className="text-[10px] sm:text-xs font-bold text-[#bf3627] uppercase tracking-[0.15em] font-mono">
-              {author}
-            </footer>
-          </div>
-        )}
-      </div>
-    </div>
+    <figure className="relative mb-10 sm:mb-14 mt-6 sm:mt-10 pt-5 sm:pt-7 border-t-2 border-[#110f0b]">
+      <span
+        aria-hidden="true"
+        className="absolute -top-2 sm:-top-3 left-0 text-5xl sm:text-6xl leading-none text-[#bf3627]/25 select-none pointer-events-none"
+        style={{ fontFamily: "'Georgia', 'Noto Serif SC', 'Source Han Serif SC', serif" }}
+      >
+        &ldquo;
+      </span>
+      <blockquote
+        className="text-xl sm:text-2xl md:text-3xl font-medium text-[#2d2820] leading-snug pl-6 sm:pl-8"
+        style={{ fontFamily: "'Georgia', 'Noto Serif SC', 'Source Han Serif SC', serif" }}
+      >
+        {parseInlineMarkdown(cleanText, onAnalyzeLink)}
+      </blockquote>
+      {author && (
+        <figcaption className="mt-4 sm:mt-5 text-right text-[11px] sm:text-xs font-semibold text-[#7a7069] tracking-[0.08em]">
+          <span className="text-[#bf3627] mr-1.5">—</span>
+          {author}
+        </figcaption>
+      )}
+    </figure>
   );
 };
 
